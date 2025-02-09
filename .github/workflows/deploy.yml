@@ -30,7 +30,7 @@ jobs:
 
       - name: Initialize EB CLI
         run: |
-          eb init game-collection --region us-west-2 --platform "Python 3.11 running on 64bit Amazon Linux 2023"
+          eb init game-collection --region us-west-2 --platform "Python 3.11"
 
       - name: Deploy to Elastic Beanstalk
         run: eb deploy test
