@@ -463,34 +463,30 @@
                         <tr class="details-row">
                             <td colspan="6" class="p-0">
                                 <div class="game-details" data-game-id="${game.id}">
-                                    <div class="full-name">${game.name}</div>
+                                    <div class="full-name">${game.name} (${game.console})</div>
                                     <dl>
                                         <div>
                                             <dt>Status</dt>
                                             <dd>${status}</dd>
                                         </div>
                                         <div>
-                                            <dt>Console</dt>
-                                            <dd>${game.console}</dd>
-                                        </div>
-                                        <div>
                                             <dt>Condition</dt>
                                             <dd>${game.condition || '-'}</dd>
                                         </div>
                                         <div>
-                                            <dt>Purchase Price</dt>
+                                            <dt>Bought</dt>
                                             <dd>${formatCurrency(game.purchase_price)}</dd>
                                         </div>
                                         <div>
-                                            <dt>Current Price</dt>
+                                            <dt>Current</dt>
                                             <dd>${formatCurrency(game.current_price)}</dd>
                                         </div>
                                         <div>
-                                            <dt>Value Change</dt>
+                                            <dt>Change</dt>
                                             <dd>${valueChange}</dd>
                                         </div>
                                         <div>
-                                            <dt>Acquisition Date</dt>
+                                            <dt>Acquired</dt>
                                             <dd>${game.acquisition_date || '-'}</dd>
                                         </div>
                                     </dl>
