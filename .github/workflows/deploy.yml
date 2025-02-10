@@ -43,7 +43,7 @@ jobs:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           application_name: "game-collection"
-          environment_name: "test"
+          environment_name: "prod"
           region: "us-west-2"
           version_label: "game-collection-${{ github.sha }}"
           deployment_package: deploy.zip
