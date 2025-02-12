@@ -45,5 +45,5 @@ jobs:
           application_name: "game-collection"
           environment_name: "prod"
           region: "us-west-2"
-          version_label: "game-collection-${{ github.sha }}"
+          version_label: "game-collection-${{ github.sha }}-${{ github.run_number }}"
           deployment_package: deploy.zip
