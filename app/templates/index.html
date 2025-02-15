@@ -462,8 +462,17 @@
                 // Render table rows with details rows
                 tbody.innerHTML = pageGames.map(game => {
                     const valueChange = !game.is_wanted ? formatValueChange(game.current_price, game.purchase_price) : '-';
-                    const statusIcon = game.is_wanted ? '🔖' : '✓';
-                    const status = game.is_wanted ? 'Wanted' : 'Purchased';
+                    let statusIcon, status;
+                    if (game.is_wanted) {
+                        statusIcon = '🔖';
+                        status = 'Wanted';
+                    } else if (game.is_lent) {
+                        statusIcon = '📤';
+                        status = 'Lent Out';
+                    } else {
+                        statusIcon = '✓';
+                        status = 'Purchased';
+                    }
                     
                     return `
                         <tr class="game-row" data-game-id="${game.id}">

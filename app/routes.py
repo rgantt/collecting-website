@@ -57,7 +57,8 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                     CAST(pg.price AS DECIMAL) as purchase_price,
                     CAST(lp.price AS DECIMAL) as current_price,
                     pg.acquisition_date as date,
-                    CASE WHEN w.physical_game IS NOT NULL THEN 1 ELSE 0 END as is_wanted
+                    CASE WHEN w.physical_game IS NOT NULL THEN 1 ELSE 0 END as is_wanted,
+                    CASE WHEN l.id IS NOT NULL THEN 1 ELSE 0 END as is_lent
                 FROM physical_games p
                 LEFT JOIN purchased_games pg ON p.id = pg.physical_game
                 LEFT JOIN wanted_games w ON p.id = w.physical_game
@@ -71,11 +72,12 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                         (w.condition IS NOT NULL AND LOWER(lp.condition) = LOWER(w.condition))
                     )
                     AND lp.rn = 1
+                LEFT JOIN lent_games l ON pg.id = l.purchased_game
                 WHERE pg.physical_game IS NOT NULL OR w.physical_game IS NOT NULL
             )
             SELECT 
                 id, name, console, condition, source_name, 
-                purchase_price, current_price, date, is_wanted
+                purchase_price, current_price, date, is_wanted, is_lent
             FROM games_with_prices
             ORDER BY 
                 CASE WHEN {sort_field} IS NULL THEN 1 ELSE 0 END,
@@ -88,7 +90,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
         
         collection_games = []
         for row in cursor.fetchall():
-            id, name, console, condition, source, purchase_price, current_price, date, is_wanted = row
+            id, name, console, condition, source, purchase_price, current_price, date, is_wanted, is_lent = row
             collection_games.append({
                 'id': id,
                 'name': name,
@@ -98,7 +100,8 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                 'purchase_price': float(purchase_price) if purchase_price else None,
                 'current_price': float(current_price) if current_price else None,
                 'acquisition_date': date,
-                'is_wanted': bool(is_wanted)
+                'is_wanted': bool(is_wanted),
+                'is_lent': bool(is_lent)
             })
         
         current_app.logger.info(f'Found {len(collection_games)} games')
