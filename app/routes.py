@@ -74,6 +74,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                     AND lp.rn = 1
                 LEFT JOIN lent_games l ON pg.id = l.purchased_game
                 WHERE pg.physical_game IS NOT NULL OR w.physical_game IS NOT NULL
+                GROUP BY p.id
             )
             SELECT 
                 id, name, console, condition, source_name, 
