@@ -155,17 +155,22 @@
         }
         
         .game-details dl > div {
-            flex: 0 1 auto;
+            flex: 1 1 140px;
             min-width: 140px;
+            max-width: 200px;
         }
         
         .game-details dl > div.full-width {
             flex: 1 0 100%;
+            max-width: 100%;
         }
         
         .game-details dl > div.full-width dd {
-            white-space: pre-wrap;
-            word-break: break-word;
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.4;
+            max-width: 100%;
         }
         
         .game-details dt {
@@ -550,6 +555,22 @@
                                         <div>
                                             <dt>Lent To</dt>
                                             <dd>${game.lent_to || '-'}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Bought</dt>
+                                            <dd>${formatCurrency(game.purchase_price)}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Current</dt>
+                                            <dd>${formatCurrency(game.current_price)}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Change</dt>
+                                            <dd>${valueChange}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Acquired</dt>
+                                            <dd>${game.acquisition_date || '-'}</dd>
                                         </div>
                                         <div class="full-width">
                                             <dt>Note</dt>
