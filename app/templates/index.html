@@ -137,6 +137,15 @@
             min-width: 140px;
         }
         
+        .game-details dl > div.full-width {
+            flex: 1 0 100%;
+        }
+        
+        .game-details dl > div.full-width dd {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
         .game-details dt {
             font-weight: 600;
             color: #666;
@@ -172,73 +181,12 @@
             }
         }
         
-        .game-row {
-            cursor: pointer;
-        }
-        
-        .game-row.selected {
-            background-color: #f8f9fa;
-        }
-        
         .full-name {
             font-weight: bold;
             color: #333;
             margin-bottom: 1rem;
             padding-bottom: 0.5rem;
             border-bottom: 1px solid #eee;
-        }
-        
-        .table td {
-            vertical-align: middle;
-        }
-        
-        .name-col {
-            max-width: 300px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .expanded-content dl {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1rem;
-        }
-        
-        .expanded-content dt {
-            font-weight: 600;
-            color: #666;
-        }
-        
-        .expanded-content dd {
-            margin-bottom: 0;
-        }
-        
-        .full-name {
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .table-container {
-            position: relative;
-        }
-        
-        .game-details {
-            display: none;
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            margin: 0.5rem 0;
-            padding: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .game-details.show {
-            display: block;
         }
         
         .game-row {
@@ -555,6 +503,25 @@
                                             <dt>Condition</dt>
                                             <dd>${game.condition || '-'}</dd>
                                         </div>
+                                        ${game.is_wanted ? `
+                                        <div>
+                                            <dt>Current Price</dt>
+                                            <dd>${formatCurrency(game.current_price)}</dd>
+                                        </div>
+                                        ` : game.is_lent ? `
+                                        <div>
+                                            <dt>Lent Date</dt>
+                                            <dd>${game.lent_date || '-'}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Lent To</dt>
+                                            <dd>${game.lent_to || '-'}</dd>
+                                        </div>
+                                        <div class="full-width">
+                                            <dt>Note</dt>
+                                            <dd>${game.note || '-'}</dd>
+                                        </div>
+                                        ` : `
                                         <div>
                                             <dt>Bought</dt>
                                             <dd>${formatCurrency(game.purchase_price)}</dd>
@@ -571,6 +538,7 @@
                                             <dt>Acquired</dt>
                                             <dd>${game.acquisition_date || '-'}</dd>
                                         </div>
+                                        `}
                                     </dl>
                                 </div>
                             </td>

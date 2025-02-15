@@ -58,7 +58,10 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                     CAST(lp.price AS DECIMAL) as current_price,
                     pg.acquisition_date as date,
                     CASE WHEN w.physical_game IS NOT NULL THEN 1 ELSE 0 END as is_wanted,
-                    CASE WHEN l.id IS NOT NULL THEN 1 ELSE 0 END as is_lent
+                    CASE WHEN l.id IS NOT NULL THEN 1 ELSE 0 END as is_lent,
+                    l.lent_date,
+                    l.lent_to,
+                    l.note
                 FROM physical_games p
                 LEFT JOIN purchased_games pg ON p.id = pg.physical_game
                 LEFT JOIN wanted_games w ON p.id = w.physical_game
@@ -78,7 +81,8 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
             )
             SELECT 
                 id, name, console, condition, source_name, 
-                purchase_price, current_price, date, is_wanted, is_lent
+                purchase_price, current_price, date, is_wanted, is_lent,
+                lent_date, lent_to, note
             FROM games_with_prices
             ORDER BY 
                 CASE WHEN {sort_field} IS NULL THEN 1 ELSE 0 END,
@@ -91,7 +95,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
         
         collection_games = []
         for row in cursor.fetchall():
-            id, name, console, condition, source, purchase_price, current_price, date, is_wanted, is_lent = row
+            id, name, console, condition, source, purchase_price, current_price, date, is_wanted, is_lent, lent_date, lent_to, note = row
             collection_games.append({
                 'id': id,
                 'name': name,
@@ -102,7 +106,10 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                 'current_price': float(current_price) if current_price else None,
                 'acquisition_date': date,
                 'is_wanted': bool(is_wanted),
-                'is_lent': bool(is_lent)
+                'is_lent': bool(is_lent),
+                'lent_date': lent_date,
+                'lent_to': lent_to,
+                'note': note
             })
         
         current_app.logger.info(f'Found {len(collection_games)} games')
