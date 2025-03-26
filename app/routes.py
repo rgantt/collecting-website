@@ -5,6 +5,8 @@ from contextlib import contextmanager
 import sqlite3
 from pathlib import Path
 from app.auth import requires_auth
+from app.wishlist_service import WishlistService
+from app.collection_service import CollectionService
 
 main = Blueprint('main', __name__)
 
@@ -228,3 +230,82 @@ def get_all_collection_games():
     # Use existing function but get all games without pagination
     collection_games = get_collection_games(page=1, per_page=10000)  # Large number to get all games
     return jsonify(collection_games)
+
+@main.route('/api/wishlist/add', methods=['POST'])
+@requires_auth
+def add_to_wishlist():
+    """Add a game to the wishlist from a pricecharting.com URL."""
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"Received wishlist add request with data: {data}")
+        
+        if not data or 'url' not in data:
+            current_app.logger.warning("Missing URL in wishlist add request")
+            return jsonify({"error": "URL is required"}), 400
+        
+        url = data.get('url')
+        condition = data.get('condition', 'complete')
+        
+        current_app.logger.info(f"Adding game to wishlist with URL: {url}, condition: {condition}")
+        wishlist_service = WishlistService(db_path)
+        result = wishlist_service.add_game_to_wishlist(url, condition)
+        
+        current_app.logger.info(f"Successfully added game to wishlist: {result}")
+        return jsonify({"success": True, "game": result}), 201
+    
+    except ValueError as e:
+        current_app.logger.error(f"Error adding game to wishlist: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+    
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error adding game to wishlist: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+@main.route('/api/collection/add', methods=['POST'])
+@requires_auth
+def add_to_collection():
+    """Add a game to the collection from a pricecharting.com URL."""
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"Received collection add request with data: {data}")
+        
+        if not data or 'url' not in data:
+            current_app.logger.warning("Missing URL in collection add request")
+            return jsonify({"error": "URL is required"}), 400
+        
+        url = data.get('url')
+        condition = data.get('condition', 'complete')
+        purchase_date = data.get('purchase_date')
+        purchase_source = data.get('purchase_source')
+        purchase_price = data.get('purchase_price')
+        
+        # Convert price to float if present
+        if purchase_price:
+            try:
+                purchase_price = float(purchase_price)
+            except ValueError:
+                current_app.logger.warning(f"Invalid price format: {purchase_price}")
+                return jsonify({"error": "Price must be a valid number"}), 400
+        
+        current_app.logger.info(f"Adding game to collection with URL: {url}, condition: {condition}, " +
+                              f"date: {purchase_date}, source: {purchase_source}, price: {purchase_price}")
+        
+        collection_service = CollectionService(db_path)
+        result = collection_service.add_game_to_collection(
+            url, 
+            purchase_date=purchase_date,
+            purchase_source=purchase_source,
+            purchase_price=purchase_price,
+            condition=condition
+        )
+        
+        current_app.logger.info(f"Successfully added game to collection: {result}")
+        return jsonify({"success": True, "game": result}), 201
+    
+    except ValueError as e:
+        current_app.logger.error(f"Error adding game to collection: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+    
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error adding game to collection: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
