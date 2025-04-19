@@ -20,6 +20,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='icons/favicon-16x16.png') }}">
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <style>
         .sortable {
             cursor: pointer;
@@ -267,6 +268,19 @@
         ::-ms-input-placeholder {
             color: #adb5bd !important;
             opacity: 0.6 !important;
+        }
+        
+        .sparkline-container {
+            width: 100%;
+            height: 60px;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+        
+        /* Add additional margin for y-axis labels */
+        .sparkline-chart {
+            height: 100%;
+            width: 100%;
         }
     </style>
 </head>
@@ -537,19 +551,21 @@
             }
             
             // Format currency
-            function formatCurrency(value) {
-                if (value === null || value === undefined) return '-';
-                return '$' + parseFloat(value).toFixed(2);
+            window.formatCurrency = function(value) {
+                if (value === null || value === undefined || isNaN(value)) return '-';
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
             }
             
             // Format value change percentage
             function formatValueChange(current, purchase) {
                 if (!current || !purchase) return '-';
-                const change = current - purchase;
-                const changePct = (change / purchase) * 100;
-                const sign = changePct >= 0 ? '+' : '';
-                const cssClass = changePct >= 0 ? 'text-success' : 'text-danger';
-                return `<span class="${cssClass}">${sign}${changePct.toFixed(1)}%</span>`;
+                
+                const change = (current - purchase) / purchase * 100;
+                const formattedChange = change.toFixed(1);
+                const sign = change >= 0 ? '+' : '';
+                const color = change >= 0 ? 'success' : 'danger';
+                
+                return `<span class="text-${color}">${sign}${formattedChange}%</span>`;
             }
             
             // Filter games
@@ -713,6 +729,12 @@
                                         </div>
                                         `}
                                     </dl>
+                                    <div class="full-width">
+                                        <dt>Price History</dt>
+                                        <dd>
+                                            <div id="sparkline-${game.id}" class="sparkline-container"></div>
+                                        </dd>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -737,6 +759,9 @@
                         if (!wasVisible) {
                             detailsDiv.classList.add('show');
                             this.classList.add('selected');
+                            
+                            // Fetch and show price history
+                            fetchPriceHistory(gameId);
                         }
                     });
                 });
@@ -1088,6 +1113,159 @@
                 successDiv.textContent = message;
                 successDiv.classList.remove('d-none');
                 errorDiv.classList.add('d-none');
+            }
+        }
+        
+        // Function to fetch price history and render sparkline
+        async function fetchPriceHistory(gameId) {
+            try {
+                const sparklineContainer = document.getElementById(`sparkline-${gameId}`);
+                if (!sparklineContainer) return;
+                
+                // Show loading state
+                sparklineContainer.innerHTML = '<div class="text-center"><small>Loading price history...</small></div>';
+                
+                // Fetch price history data from API
+                const response = await fetch(`/api/game/${gameId}/price_history`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    sparklineContainer.innerHTML = `<div class="text-center text-muted"><small>${errorData.error || 'Failed to load price history'}</small></div>`;
+                    return;
+                }
+                
+                const priceHistory = await response.json();
+                
+                if (!priceHistory || priceHistory.length === 0) {
+                    sparklineContainer.innerHTML = '<div class="text-center text-muted"><small>No price history available</small></div>';
+                    return;
+                }
+                
+                // Create a chart container with proper height
+                sparklineContainer.innerHTML = '<div class="sparkline-chart"></div>';
+                const chartElement = sparklineContainer.querySelector('.sparkline-chart');
+                
+                // Debug
+                console.log('Price history data:', priceHistory);
+                
+                // Ensure data is sorted by date (ascending)
+                priceHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+                
+                // Prepare data for sparkline
+                const seriesData = priceHistory.map(item => {
+                    // Ensure we have valid numbers
+                    const price = item.price !== null && item.price !== undefined ? parseFloat(item.price) : null;
+                    return isNaN(price) ? null : price;
+                }).filter(price => price !== null);
+                
+                // Debug
+                console.log('Series data:', seriesData);
+                
+                if (seriesData.length === 0) {
+                    sparklineContainer.innerHTML = '<div class="text-center text-muted"><small>No valid price data available</small></div>';
+                    return;
+                }
+                
+                const categories = priceHistory.map(item => new Date(item.date).toLocaleDateString());
+                
+                // Get first and last values for y-axis labels
+                const firstValue = seriesData[0];
+                const lastValue = seriesData[seriesData.length - 1];
+                
+                // Create sparkline chart
+                const options = {
+                    series: [{
+                        name: 'Value',
+                        data: seriesData
+                    }],
+                    chart: {
+                        type: 'area',
+                        height: 60,
+                        sparkline: {
+                            enabled: true
+                        },
+                        animations: {
+                            enabled: true,
+                            easing: 'easeinout',
+                            speed: 800
+                        },
+                        toolbar: {
+                            show: false
+                        }
+                    },
+                    stroke: {
+                        curve: 'smooth',
+                        width: 2
+                    },
+                    fill: {
+                        opacity: 0.3
+                    },
+                    tooltip: {
+                        enabled: true,
+                        fixed: {
+                            enabled: false
+                        },
+                        x: {
+                            show: true,
+                            formatter: function(value, { series, seriesIndex, dataPointIndex }) {
+                                return categories[dataPointIndex];
+                            }
+                        },
+                        y: {
+                            formatter: function (value) {
+                                return window.formatCurrency(value);
+                            },
+                            title: {
+                                formatter: () => 'Value:'
+                            }
+                        }
+                    },
+                    colors: ['#4CAF50'],
+                    grid: {
+                        show: false,
+                        padding: {
+                            left: 0,
+                            right: 0
+                        }
+                    },
+                    xaxis: {
+                        labels: {
+                            show: false
+                        },
+                        axisTicks: {
+                            show: false
+                        },
+                        axisBorder: {
+                            show: false
+                        }
+                    },
+                    yaxis: {
+                        labels: {
+                            show: false
+                        },
+                        min: Math.floor(Math.min(...seriesData) * 0.95),
+                        max: Math.ceil(Math.max(...seriesData) * 1.05)
+                    }
+                };
+                
+                // Only add annotations if we have valid data
+                if (firstValue !== undefined && lastValue !== undefined) {
+                    // Remove annotations - we don't want to show the labels
+                }
+                
+                try {
+                    const chart = new ApexCharts(chartElement, options);
+                    chart.render();
+                } catch (chartError) {
+                    console.error('Error rendering chart:', chartError);
+                    sparklineContainer.innerHTML = '<div class="text-center text-muted"><small>Error rendering price chart</small></div>';
+                }
+            } catch (error) {
+                console.error('Error fetching price history:', error);
+                const sparklineContainer = document.getElementById(`sparkline-${gameId}`);
+                if (sparklineContainer) {
+                    sparklineContainer.innerHTML = `<div class="text-center text-muted"><small>Error: ${error.message}</small></div>`;
+                }
             }
         }
     </script>

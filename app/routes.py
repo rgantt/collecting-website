@@ -309,3 +309,55 @@ def add_to_collection():
     except Exception as e:
         current_app.logger.error(f"Unexpected error adding game to collection: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
+
+@main.route('/api/game/<int:game_id>/price_history')
+@requires_auth
+def get_game_price_history(game_id):
+    """Get price history data for a specific game."""
+    try:
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # First, get the pricecharting_id and condition for this game
+            cursor.execute("""
+                SELECT pc.pricecharting_id, COALESCE(pg.condition, w.condition) as condition
+                FROM physical_games p
+                LEFT JOIN purchased_games pg ON p.id = pg.physical_game
+                LEFT JOIN wanted_games w ON p.id = w.physical_game
+                LEFT JOIN physical_games_pricecharting_games pcg ON p.id = pcg.physical_game
+                LEFT JOIN pricecharting_games pc ON pcg.pricecharting_game = pc.id
+                WHERE p.id = ?
+            """, (game_id,))
+            
+            result = cursor.fetchone()
+            if not result:
+                return jsonify({"error": "Game not found"}), 404
+                
+            pricecharting_id, condition = result
+            
+            if not pricecharting_id:
+                return jsonify({"error": "No price data available for this game"}), 404
+            
+            # Now get all price observations for this game and condition
+            cursor.execute("""
+                SELECT 
+                    price,
+                    retrieve_time
+                FROM pricecharting_prices
+                WHERE pricecharting_id = ? AND LOWER(condition) = LOWER(?)
+                ORDER BY retrieve_time ASC
+            """, (pricecharting_id, condition))
+            
+            price_history = []
+            for row in cursor.fetchall():
+                price, retrieve_time = row
+                price_history.append({
+                    'price': float(price) if price else None,
+                    'date': retrieve_time
+                })
+            
+            return jsonify(price_history)
+    
+    except Exception as e:
+        current_app.logger.error(f"Error getting price history: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
