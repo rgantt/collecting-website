@@ -1,10 +1,9 @@
-from flask import Blueprint, request, render_template, jsonify, session, current_app
+from flask import Blueprint, request, render_template, jsonify, current_app
 from werkzeug.datastructures import MultiDict
 from urllib.parse import urlencode
 from contextlib import contextmanager
 import sqlite3
 from pathlib import Path
-from app.auth import requires_auth
 from app.wishlist_service import WishlistService
 from app.collection_service import CollectionService
 
@@ -191,7 +190,6 @@ def get_wishlist_sort_field(sort_by: str) -> str:
     return valid_sort_fields.get(sort_by, 'p.name')
 
 @main.route('/')
-@requires_auth
 def index():
     page = request.args.get('page', 1, type=int)
     per_page = 30
@@ -224,7 +222,6 @@ def index():
                          wishlist_order=wishlist_order)
 
 @main.route('/api/collection')
-@requires_auth
 def get_all_collection_games():
     """Get all games for client-side operations."""
     # Use existing function but get all games without pagination
@@ -232,7 +229,6 @@ def get_all_collection_games():
     return jsonify(collection_games)
 
 @main.route('/api/wishlist/add', methods=['POST'])
-@requires_auth
 def add_to_wishlist():
     """Add a game to the wishlist from a pricecharting.com URL."""
     try:
@@ -262,7 +258,6 @@ def add_to_wishlist():
         return jsonify({"error": "An unexpected error occurred"}), 500
 
 @main.route('/api/collection/add', methods=['POST'])
-@requires_auth
 def add_to_collection():
     """Add a game to the collection from a pricecharting.com URL."""
     try:
@@ -311,7 +306,6 @@ def add_to_collection():
         return jsonify({"error": "An unexpected error occurred"}), 500
 
 @main.route('/api/game/<int:game_id>/price_history')
-@requires_auth
 def get_game_price_history(game_id):
     """Get price history data for a specific game."""
     try:
