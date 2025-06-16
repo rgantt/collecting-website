@@ -47,17 +47,26 @@ cd "$APP_DIR"
 
 # Stop service before updating
 log "Stopping ${APP_NAME} service..."
-systemctl stop "$SERVICE_NAME" || true
+if systemctl is-active --quiet "$SERVICE_NAME"; then
+    systemctl stop "$SERVICE_NAME"
+    log "Service stopped successfully"
+else
+    log "Service is not running (this is normal for first-time deployment)"
+fi
 
 # Download games.db from S3 (if AWS credentials are configured)
 log "Downloading games database..."
 if command -v aws &> /dev/null; then
+    # Set HOME environment for www-data user to avoid snap permission issues
+    export HOME="/var/lib/www-data"
+    sudo -u "$APP_USER" mkdir -p "$HOME/.aws" 2>/dev/null || true
+    
     # Get the ETag of the local games.db if it exists
     if [ -f games.db ]; then
-        LOCAL_ETAG=$(sudo -u "$APP_USER" aws s3api head-object --bucket collecting-tools-gantt-pub --key games.db --query ETag --output text 2>/dev/null || echo "")
+        LOCAL_ETAG=$(sudo -u "$APP_USER" env HOME="$HOME" aws s3api head-object --bucket collecting-tools-gantt-pub --key games.db --query ETag --output text 2>/dev/null || echo "")
         if [ ! -z "$LOCAL_ETAG" ]; then
             log "Checking if games.db needs updating..."
-            ERROR_MSG=$(sudo -u "$APP_USER" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db --if-none-match $LOCAL_ETAG games.db 2>&1 || true)
+            ERROR_MSG=$(sudo -u "$APP_USER" env HOME="$HOME" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db --if-none-match $LOCAL_ETAG games.db 2>&1 || true)
             if [[ $ERROR_MSG == *"Not Modified"* ]]; then
                 log "Local games.db is already up to date"
             elif [[ $ERROR_MSG == "" ]]; then
@@ -67,11 +76,11 @@ if command -v aws &> /dev/null; then
             fi
         else
             log "Downloading games.db from S3..."
-            sudo -u "$APP_USER" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null
+            sudo -u "$APP_USER" env HOME="$HOME" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null
         fi
     else
         log "Downloading games.db from S3..."
-        sudo -u "$APP_USER" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null
+        sudo -u "$APP_USER" env HOME="$HOME" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null
     fi
 else
     warn "AWS CLI not found. Skipping games.db download."

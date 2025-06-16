@@ -81,6 +81,12 @@ log "📁 Creating application directory..."
 mkdir -p /opt/collecting-website
 chown www-data:www-data /opt/collecting-website
 
+# Create home directory for www-data user (needed for AWS CLI snap)
+log "🏠 Setting up www-data home directory..."
+mkdir -p /var/lib/www-data
+chown www-data:www-data /var/lib/www-data
+chmod 755 /var/lib/www-data
+
 # Set up log directory
 log "📝 Setting up logging..."
 mkdir -p /var/log/collecting-website
