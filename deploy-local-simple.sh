@@ -54,37 +54,71 @@ else
     log "Service is not running (this is normal for first-time deployment)"
 fi
 
-# Download games.db from S3 (if AWS credentials are configured)
+# Download games.db from S3 (REQUIRED)
 log "Downloading games database..."
-if command -v aws &> /dev/null; then
-    # Set HOME environment for www-data user to avoid snap permission issues
-    export HOME="/var/lib/www-data"
-    sudo -u "$APP_USER" mkdir -p "$HOME/.aws" 2>/dev/null || true
+
+# Check if we have a games.db file already
+if [ -f games.db ]; then
+    log "games.db already exists, skipping S3 download"
+else
+    log "games.db is required - attempting to download..."
     
-    # Get the ETag of the local games.db if it exists
-    if [ -f games.db ]; then
-        LOCAL_ETAG=$(sudo -u "$APP_USER" env HOME="$HOME" aws s3api head-object --bucket collecting-tools-gantt-pub --key games.db --query ETag --output text 2>/dev/null || echo "")
-        if [ ! -z "$LOCAL_ETAG" ]; then
-            log "Checking if games.db needs updating..."
-            ERROR_MSG=$(sudo -u "$APP_USER" env HOME="$HOME" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db --if-none-match $LOCAL_ETAG games.db 2>&1 || true)
-            if [[ $ERROR_MSG == *"Not Modified"* ]]; then
-                log "Local games.db is already up to date"
-            elif [[ $ERROR_MSG == "" ]]; then
-                log "Downloaded newer version of games.db"
-            else
-                warn "Error checking games.db: $ERROR_MSG"
-            fi
+    # Method 1: Try AWS CLI snap as root
+    if command -v aws &> /dev/null; then
+        log "Attempting S3 download with AWS CLI..."
+        if aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null 2>&1; then
+            log "✅ Downloaded games.db from S3 successfully"
+            chown "$APP_USER:$APP_USER" games.db
         else
-            log "Downloading games.db from S3..."
-            sudo -u "$APP_USER" env HOME="$HOME" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null
+            warn "AWS CLI snap failed due to permission issues"
+            
+            # Method 2: Try installing pip-based AWS CLI as fallback
+            log "Installing pip-based AWS CLI as fallback..."
+            pip3 install --quiet awscli 2>/dev/null || true
+            
+            if command -v ~/.local/bin/aws &> /dev/null; then
+                log "Trying pip-based AWS CLI..."
+                if ~/.local/bin/aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null 2>&1; then
+                    log "✅ Downloaded games.db with pip AWS CLI"
+                    chown "$APP_USER:$APP_USER" games.db
+                else
+                    error "Failed to download games.db with pip AWS CLI"
+                fi
+            else
+                error "Could not install pip-based AWS CLI"
+            fi
         fi
     else
-        log "Downloading games.db from S3..."
-        sudo -u "$APP_USER" env HOME="$HOME" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null
+        # Method 3: Install pip-based AWS CLI if snap not available
+        log "AWS CLI not found. Installing pip-based version..."
+        pip3 install awscli
+        
+        if command -v ~/.local/bin/aws &> /dev/null || command -v aws &> /dev/null; then
+            log "Trying to download with newly installed AWS CLI..."
+            AWS_CMD=$(command -v ~/.local/bin/aws || command -v aws)
+            if $AWS_CMD s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null 2>&1; then
+                log "✅ Downloaded games.db successfully"
+                chown "$APP_USER:$APP_USER" games.db
+            else
+                error "Failed to download games.db - AWS credentials may not be configured"
+            fi
+        else
+            error "Failed to install AWS CLI"
+        fi
     fi
-else
-    warn "AWS CLI not found. Skipping games.db download."
-    warn "If you need the database, configure AWS CLI with: aws configure"
+    
+    # Final check - ensure we have the database
+    if [ ! -f games.db ]; then
+        error "❌ CRITICAL: games.db is required but could not be downloaded!"
+        error ""
+        error "Please do one of the following:"
+        error "  1. Configure AWS credentials: aws configure"
+        error "  2. Copy games.db manually to $APP_DIR"
+        error "  3. Run: scp your-local-machine:path/to/games.db $APP_DIR/"
+        error ""
+        error "The deployment cannot continue without games.db"
+        exit 1
+    fi
 fi
 
 # Set up Python virtual environment
