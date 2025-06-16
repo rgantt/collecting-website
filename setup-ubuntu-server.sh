@@ -113,23 +113,19 @@ EOF
 # Enable nginx site
 ln -sf /etc/nginx/sites-available/collecting-website /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl restart nginx
+nginx -t && systemctl daemon-reload && systemctl restart nginx
 systemctl enable nginx
-
-# Install latest Python packages globally
-log "🐍 Installing Python packages..."
-pip3 install --upgrade pip gunicorn flask requests
 
 log "✅ Ubuntu server setup completed!"
 log ""
 log "📋 Next steps:"
 log "1. Clone your repository to /opt/collecting-website"
 log "2. Set up your .env file with necessary environment variables"
-log "3. Run the initial deployment with: sudo /opt/collecting-website/deploy-ubuntu.sh"
+log "3. Run the initial deployment with: sudo /opt/collecting-website/deploy-local-simple.sh"
 log ""
 log "🔧 Useful commands:"
 log "  - View app logs: sudo journalctl -u collecting-website -f"
 log "  - Restart app: sudo systemctl restart collecting-website"
-log "  - Manual deployment: sudo /opt/collecting-website/deploy-ubuntu.sh"
+log "  - Manual deployment: sudo /opt/collecting-website/deploy-local-simple.sh"
 log ""
 log "🌐 Access your application at: http://$(hostname -I | awk '{print $1}')"
