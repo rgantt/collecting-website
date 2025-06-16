@@ -137,11 +137,11 @@ log "Setting file permissions..."
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod +x "$APP_DIR/wsgi.py"
 
-# Install systemd service if not already installed
-if [ ! -f "/etc/systemd/system/${SERVICE_NAME}" ]; then
-    log "Installing systemd service..."
-    cp "$APP_DIR/${SERVICE_NAME}" "/etc/systemd/system/${SERVICE_NAME}"
-    systemctl daemon-reload
+# Install/update systemd service
+log "Installing/updating systemd service..."
+cp "$APP_DIR/${SERVICE_NAME}" "/etc/systemd/system/${SERVICE_NAME}"
+systemctl daemon-reload
+if ! systemctl is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
     systemctl enable "$SERVICE_NAME"
 fi
 
