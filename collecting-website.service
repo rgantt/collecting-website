@@ -8,10 +8,10 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/collecting-website
 Environment=PATH=/opt/collecting-website/venv/bin
-Environment=FLASK_APP=app.py
+Environment=FLASK_APP=wsgi.py
 Environment=FLASK_ENV=production
 EnvironmentFile=/opt/collecting-website/.env
-ExecStart=/opt/collecting-website/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 app:app
+ExecStart=/opt/collecting-website/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 wsgi:app
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed
 TimeoutStopSec=5
