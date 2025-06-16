@@ -16,11 +16,11 @@ ls -la
 
 echo ""
 echo "🐍 Testing Python app directly..."
-echo "Running: sudo -u $APP_USER $APP_DIR/venv/bin/python app.py"
+echo "Running: sudo -u $APP_USER $APP_DIR/venv/bin/python wsgi.py"
 echo ""
 
 # Try to run the app directly to see any import errors
-sudo -u "$APP_USER" "$APP_DIR/venv/bin/python" app.py
+sudo -u "$APP_USER" "$APP_DIR/venv/bin/python" wsgi.py
 
 echo ""
 echo "🔧 If that failed, trying to import the app module..."

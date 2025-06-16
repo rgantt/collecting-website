@@ -135,7 +135,7 @@ sudo -u "$APP_USER" venv/bin/pip install -r requirements.txt
 # Set proper ownership
 log "Setting file permissions..."
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-chmod +x "$APP_DIR/app.py"
+chmod +x "$APP_DIR/wsgi.py"
 
 # Install systemd service if not already installed
 if [ ! -f "/etc/systemd/system/${SERVICE_NAME}" ]; then
