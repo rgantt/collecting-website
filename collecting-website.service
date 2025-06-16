@@ -1,0 +1,23 @@
+[Unit]
+Description=Game Collection Website
+After=network.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/collecting-website
+Environment=PATH=/opt/collecting-website/venv/bin
+Environment=FLASK_APP=app.py
+Environment=FLASK_ENV=production
+EnvironmentFile=/opt/collecting-website/.env
+ExecStart=/opt/collecting-website/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
