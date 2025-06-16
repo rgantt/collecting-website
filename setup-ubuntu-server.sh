@@ -39,6 +39,11 @@ log "🚀 Setting up Ubuntu server for Collecting Website..."
 log "📦 Updating system packages..."
 apt-get update && apt-get upgrade -y
 
+# Enable universe repository for more packages
+log "📦 Enabling universe repository..."
+add-apt-repository universe -y
+apt-get update
+
 # Install required packages
 log "📦 Installing required packages..."
 apt-get install -y \
@@ -50,7 +55,11 @@ apt-get install -y \
     ufw \
     curl \
     unzip \
-    awscli
+    snapd
+
+# Install AWS CLI via snap
+log "📦 Installing AWS CLI via snap..."
+snap install aws-cli --classic
 
 # Create users
 log "👤 Creating application users..."
