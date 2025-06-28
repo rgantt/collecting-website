@@ -79,13 +79,21 @@ fi
 log "Installing Python dependencies..."
 cd "$APP_DIR"
 
-# Create .local directory structure for www-data user
-sudo mkdir -p "/var/www/.local/bin"
-sudo mkdir -p "/var/www/.local/lib/python3.10/site-packages"
-sudo chown -R "$APP_USER:$APP_USER" "/var/www/.local"
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    log "Creating virtual environment..."
+    sudo -u "$APP_USER" python3 -m venv venv
+    log "Virtual environment created"
+else
+    log "Virtual environment already exists"
+fi
 
-# Use system packages for externally managed Python environment
-sudo -H -u "$APP_USER" python3 -m pip install --break-system-packages --user -r requirements.txt
+# Upgrade pip and install dependencies
+log "Installing/updating Python packages..."
+sudo -u "$APP_USER" venv/bin/pip install --upgrade pip setuptools wheel
+sudo -u "$APP_USER" venv/bin/pip install \
+    --no-warn-script-location \
+    -r requirements.txt
 
 # Create/update systemd service file
 log "Updating systemd service..."
@@ -100,8 +108,7 @@ User=$APP_USER
 Group=$APP_USER
 RuntimeDirectory=$APP_NAME
 WorkingDirectory=$APP_DIR
-Environment=PATH=/var/www/.local/bin:\$PATH
-ExecStart=/var/www/.local/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 --timeout 120 wsgi:app
+ExecStart=$APP_DIR/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 --timeout 120 wsgi:app
 ExecReload=/bin/kill -s HUP \$MAINPID
 KillMode=mixed
 TimeoutStopSec=5
