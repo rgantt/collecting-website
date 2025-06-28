@@ -681,6 +681,17 @@
                                             <dt>Current Price</dt>
                                             <dd>${formatCurrency(game.current_price)}</dd>
                                         </div>
+                                        <div>
+                                            <dt>Last Price Update</dt>
+                                            <dd>
+                                                <span id="last-update-${game.id}">Loading...</span>
+                                                <button class="btn btn-sm btn-outline-primary ms-2 update-price-btn" 
+                                                        data-game-id="${game.id}" 
+                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                    Update Price
+                                                </button>
+                                            </dd>
+                                        </div>
                                         ` : game.is_lent ? `
                                         <div>
                                             <dt>Lent Date</dt>
@@ -706,9 +717,16 @@
                                             <dt>Acquired</dt>
                                             <dd>${game.acquisition_date || '-'}</dd>
                                         </div>
-                                        <div class="full-width">
-                                            <dt>Note</dt>
-                                            <dd>${game.note || '-'}</dd>
+                                        <div>
+                                            <dt>Last Price Update</dt>
+                                            <dd>
+                                                <span id="last-update-${game.id}">Loading...</span>
+                                                <button class="btn btn-sm btn-outline-primary ms-2 update-price-btn" 
+                                                        data-game-id="${game.id}" 
+                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                    Update Price
+                                                </button>
+                                            </dd>
                                         </div>
                                         ` : `
                                         <div>
@@ -726,6 +744,17 @@
                                         <div>
                                             <dt>Acquired</dt>
                                             <dd>${game.acquisition_date || '-'}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Last Price Update</dt>
+                                            <dd>
+                                                <span id="last-update-${game.id}">Loading...</span>
+                                                <button class="btn btn-sm btn-outline-primary ms-2 update-price-btn" 
+                                                        data-game-id="${game.id}" 
+                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                    Update Price
+                                                </button>
+                                            </dd>
                                         </div>
                                         `}
                                     </dl>
@@ -1268,6 +1297,116 @@
                 }
             }
         }
+
+        // Price update functionality
+        async function updateGamePrice(gameId) {
+            const button = document.querySelector(`.update-price-btn[data-game-id="${gameId}"]`);
+            if (!button) return;
+            
+            const originalText = button.textContent;
+            button.textContent = 'Retrieving...';
+            button.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/game/${gameId}/update_price`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    button.textContent = 'Updated!';
+                    button.classList.remove('btn-outline-primary');
+                    button.classList.add('btn-success');
+                    
+                    // Refresh the last update date
+                    await fetchLastPriceUpdate(gameId);
+                    
+                    // Reset button after 2 seconds
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                        button.classList.remove('btn-success');
+                        button.classList.add('btn-outline-primary');
+                    }, 2000);
+                    
+                    // Optionally reload games to show updated prices
+                    setTimeout(() => {
+                        loadAllGames();
+                    }, 1000);
+                    
+                } else {
+                    button.textContent = 'Failed';
+                    button.classList.remove('btn-outline-primary');
+                    button.classList.add('btn-danger');
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                        button.classList.remove('btn-danger');
+                        button.classList.add('btn-outline-primary');
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('Error updating price:', error);
+                button.textContent = 'Error';
+                button.classList.remove('btn-outline-primary');
+                button.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.disabled = false;
+                    button.classList.remove('btn-danger');
+                    button.classList.add('btn-outline-primary');
+                }, 2000);
+            }
+        }
+        
+        async function fetchLastPriceUpdate(gameId) {
+            try {
+                const response = await fetch(`/api/game/${gameId}/last_price_update`);
+                const result = await response.json();
+                
+                const updateElement = document.getElementById(`last-update-${gameId}`);
+                if (updateElement) {
+                    if (result.last_update) {
+                        const date = new Date(result.last_update);
+                        updateElement.textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                    } else {
+                        updateElement.textContent = 'Never';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching last price update:', error);
+                const updateElement = document.getElementById(`last-update-${gameId}`);
+                if (updateElement) {
+                    updateElement.textContent = 'Error';
+                }
+            }
+        }
+        
+        // Set up event delegation for price update buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('update-price-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const gameId = e.target.dataset.gameId;
+                if (gameId) {
+                    updateGamePrice(gameId);
+                }
+            }
+        });
+        
+        // Fetch last update dates when game details are shown
+        const originalFetchPriceHistory = fetchPriceHistory;
+        fetchPriceHistory = function(gameId) {
+            originalFetchPriceHistory(gameId);
+            fetchLastPriceUpdate(gameId);
+        };
     </script>
 
     <!-- Service Worker Registration -->

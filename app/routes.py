@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 from app.wishlist_service import WishlistService
 from app.collection_service import CollectionService
+from app.price_retrieval import update_game_prices, get_last_price_update
 
 main = Blueprint('main', __name__)
 
@@ -354,4 +355,36 @@ def get_game_price_history(game_id):
     
     except Exception as e:
         current_app.logger.error(f"Error getting price history: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+@main.route('/api/game/<int:game_id>/update_price', methods=['POST'])
+def update_game_price(game_id):
+    """Update the price for a specific game by scraping PriceCharting."""
+    try:
+        current_app.logger.info(f"Updating price for game ID: {game_id}")
+        
+        with get_db() as db:
+            success = update_game_prices(game_id, db)
+            
+            if success:
+                current_app.logger.info(f"Successfully updated price for game {game_id}")
+                return jsonify({"success": True, "message": "Price updated successfully"})
+            else:
+                current_app.logger.warning(f"Failed to update price for game {game_id}")
+                return jsonify({"success": False, "error": "Failed to update price"}), 400
+                
+    except Exception as e:
+        current_app.logger.error(f"Error updating price for game {game_id}: {str(e)}")
+        return jsonify({"success": False, "error": "An unexpected error occurred"}), 500
+
+@main.route('/api/game/<int:game_id>/last_price_update')
+def get_game_last_price_update(game_id):
+    """Get the date of the last price update for a specific game."""
+    try:
+        with get_db() as db:
+            last_update = get_last_price_update(game_id, db)
+            return jsonify({"last_update": last_update})
+            
+    except Exception as e:
+        current_app.logger.error(f"Error getting last price update for game {game_id}: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
