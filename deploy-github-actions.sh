@@ -48,6 +48,33 @@ log "Copying application files..."
 sudo cp -r . "$APP_DIR/"
 sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
+# Ensure games.db exists and has proper permissions
+log "Setting up database..."
+if [ -f "$APP_DIR/games.db" ]; then
+    log "Database found, setting permissions"
+    sudo chown "$APP_USER:$APP_USER" "$APP_DIR/games.db"
+    sudo chmod 664 "$APP_DIR/games.db"
+else
+    warn "games.db not found in deployment directory"
+    log "Attempting to download games.db from S3..."
+    
+    # Try AWS CLI to download games.db
+    if command -v aws &> /dev/null; then
+        log "Attempting S3 download with AWS CLI..."
+        if sudo -u "$APP_USER" aws s3api get-object --bucket collecting-tools-gantt-pub --key games.db "$APP_DIR/games.db" >/dev/null 2>&1; then
+            log "✅ Downloaded games.db from S3 successfully"
+            sudo chown "$APP_USER:$APP_USER" "$APP_DIR/games.db"
+            sudo chmod 664 "$APP_DIR/games.db"
+        else
+            error "Failed to download games.db from S3"
+            log "You may need to manually copy games.db to $APP_DIR/"
+        fi
+    else
+        error "AWS CLI not found - cannot download games.db"
+        log "You may need to manually copy games.db to $APP_DIR/"
+    fi
+fi
+
 # Install Python dependencies
 log "Installing Python dependencies..."
 cd "$APP_DIR"
