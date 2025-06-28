@@ -398,14 +398,98 @@ def update_game_price(game_id):
         current_app.logger.error(f"Error updating price for game {game_id}: {str(e)}")
         return jsonify({"success": False, "error": "An unexpected error occurred"}), 500
 
-@main.route('/api/game/<int:game_id>/last_price_update')
+@main.route('/api/game/<int:game_id>/last_price_update', methods=['GET'])
 def get_game_last_price_update(game_id):
     """Get the date of the last price update for a specific game."""
     try:
-        with get_db() as db:
-            last_update = get_last_price_update(game_id, db)
-            return jsonify({"last_update": last_update})
-            
+        last_update = get_last_price_update(game_id)
+        return jsonify({
+            "success": True,
+            "last_update": last_update
+        })
     except Exception as e:
         current_app.logger.error(f"Error getting last price update for game {game_id}: {str(e)}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
+        return jsonify({"error": str(e)}), 500
+
+@main.route('/api/wishlist/<int:game_id>/purchase', methods=['POST'])
+def purchase_wishlist_game(game_id):
+    """Convert a wishlist game to a purchased collection item."""
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"Received purchase request for game {game_id} with data: {data}")
+        
+        # Validate required fields
+        purchase_date = data.get('purchase_date')
+        purchase_source = data.get('purchase_source')
+        purchase_price = data.get('purchase_price')
+        
+        if not purchase_date:
+            return jsonify({"error": "Purchase date is required"}), 400
+        
+        # Convert price to float if present
+        if purchase_price:
+            try:
+                purchase_price = float(purchase_price)
+            except ValueError:
+                current_app.logger.warning(f"Invalid price format: {purchase_price}")
+                return jsonify({"error": "Price must be a valid number"}), 400
+        
+        current_app.logger.info(f"Converting wishlist game {game_id} to purchased: date={purchase_date}, source={purchase_source}, price={purchase_price}")
+        
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # First, get the physical game info and condition from wanted_games
+            cursor.execute(
+                "SELECT pg.id, wg.condition FROM wanted_games wg JOIN physical_games pg ON wg.physical_game = pg.id WHERE pg.id = ?",
+                (game_id,)
+            )
+            result = cursor.fetchone()
+            
+            if not result:
+                return jsonify({"error": "Game not found in wishlist"}), 404
+            
+            physical_game_id, condition = result
+            
+            # Insert into purchased_games table
+            cursor.execute(
+                "INSERT INTO purchased_games (physical_game, acquisition_date, source, price, condition) VALUES (?, ?, ?, ?, ?)",
+                (physical_game_id, purchase_date, purchase_source, purchase_price, condition)
+            )
+            
+            # Remove from wanted_games table
+            cursor.execute(
+                "DELETE FROM wanted_games WHERE physical_game = ?",
+                (physical_game_id,)
+            )
+            
+            db.commit()
+            
+            # Get the updated game info to return
+            cursor.execute(
+                "SELECT p.name, p.console FROM pricecharting_games p JOIN physical_games_pricecharting_games pg ON p.id = pg.pricecharting_game WHERE pg.physical_game = ?",
+                (physical_game_id,)
+            )
+            game_info = cursor.fetchone()
+            
+            if game_info:
+                name, console = game_info
+                current_app.logger.info(f"Successfully converted wishlist game {game_id} to purchased")
+                return jsonify({
+                    "success": True,
+                    "message": f"Successfully purchased {name} ({console})!",
+                    "game": {
+                        "id": game_id,
+                        "name": name,
+                        "console": console,
+                        "purchase_date": purchase_date,
+                        "purchase_source": purchase_source,
+                        "purchase_price": purchase_price
+                    }
+                }), 200
+            else:
+                return jsonify({"error": "Game information not found"}), 500
+    
+    except Exception as e:
+        current_app.logger.error(f"Error purchasing wishlist game {game_id}: {str(e)}")
+        return jsonify({"error": str(e)}), 500
