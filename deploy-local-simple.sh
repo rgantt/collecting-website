@@ -37,6 +37,19 @@ fi
 
 log "Starting local deployment of ${APP_NAME}..."
 
+# Install system dependencies for faster Python compilation
+log "Installing system build dependencies..."
+apt-get update -qq
+apt-get install -y -qq \
+    python3-dev \
+    python3-wheel \
+    build-essential \
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
+    rustc \
+    2>/dev/null || warn "Some system packages may not be available"
+
 # Ensure app directory exists
 if [ ! -d "$APP_DIR" ]; then
     error "Application directory $APP_DIR not found. Please run setup-ubuntu-server.sh first."
@@ -89,22 +102,9 @@ else
             fi
         fi
     else
-        # Method 3: Install pip-based AWS CLI if snap not available
-        log "AWS CLI not found. Installing pip-based version..."
-        pip3 install awscli
-        
-        if command -v ~/.local/bin/aws &> /dev/null || command -v aws &> /dev/null; then
-            log "Trying to download with newly installed AWS CLI..."
-            AWS_CMD=$(command -v ~/.local/bin/aws || command -v aws)
-            if $AWS_CMD s3api get-object --bucket collecting-tools-gantt-pub --key games.db games.db >/dev/null 2>&1; then
-                log "✅ Downloaded games.db successfully"
-                chown "$APP_USER:$APP_USER" games.db
-            else
-                error "Failed to download games.db - AWS credentials may not be configured"
-            fi
-        else
-            error "Failed to install AWS CLI"
-        fi
+        # Skip AWS CLI installation - not needed for deployment
+        warn "AWS CLI not available - skipping S3 download"
+        warn "You can manually copy games.db or set up AWS credentials later"
     fi
     
     # Final check - ensure we have the database
@@ -129,8 +129,17 @@ fi
 
 # Install/update dependencies
 log "Installing Python dependencies..."
-sudo -u "$APP_USER" venv/bin/pip install --upgrade pip
-sudo -u "$APP_USER" venv/bin/pip install -r requirements.txt
+# Optimize pip for faster installation
+log "Upgrading pip and installing dependencies (this may take a few minutes)..."
+sudo -u "$APP_USER" venv/bin/pip install --upgrade pip setuptools wheel
+
+# Install system packages that have binary wheels to avoid compilation
+log "Installing Python dependencies with optimizations..."
+sudo -u "$APP_USER" venv/bin/pip install \
+    --no-cache-dir \
+    --prefer-binary \
+    --only-binary=cryptography,cffi,lxml \
+    -r requirements.txt
 
 # Set proper ownership
 log "Setting file permissions..."
