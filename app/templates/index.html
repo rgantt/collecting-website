@@ -1204,11 +1204,27 @@
                         : `Added ${data.game.name} (${data.game.console}) to your collection!`;
                     showSuccess(successMessage);
                     
-                    // Reset form after 2 seconds and reload page to show new item
+                    // Reset form after showing success message
                     setTimeout(() => {
-                        wishlistModal.hide();
-                        window.location.reload();
-                    }, 2000);
+                        // Clear the form for next entry but keep modal open
+                        urlInput.value = '';
+                        conditionSelect.value = 'CIB';
+                        
+                        // Clear purchase fields if in purchased mode
+                        if (!isWishlist) {
+                            document.getElementById('purchaseDate').value = new Date().toISOString().split('T')[0];
+                            document.getElementById('purchaseSource').value = '';
+                            document.getElementById('purchasePrice').value = '';
+                        }
+                        
+                        // Reload games in background to show new item
+                        loadAllGames();
+                        
+                        // Keep success message visible for a bit longer, then hide
+                        setTimeout(() => {
+                            successDiv.classList.add('d-none');
+                        }, 2000);
+                    }, 1000);
                     
                 } catch (error) {
                     console.error(`Error adding game ${isWishlist ? 'to wishlist' : 'to collection'}:`, error);
@@ -1604,14 +1620,21 @@
                 successDiv.textContent = data.message || 'Game successfully marked as purchased!';
                 successDiv.classList.remove('d-none');
                 
-                // Hide modal after short delay
+                // Reset form after showing success message but keep modal open
                 setTimeout(() => {
-                    const modal = bootstrap.Modal.getInstance(purchaseModal);
-                    modal.hide();
+                    // Clear the form for next entry
+                    document.getElementById('purchaseDateInput').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('purchaseSourceInput').value = '';
+                    document.getElementById('purchasePriceInput').value = '';
                     
-                    // Refresh the games list to reflect the change
-                    loadGames();
-                }, 1500);
+                    // Refresh the games list to reflect the change in background
+                    loadAllGames();
+                    
+                    // Keep success message visible for a bit longer, then hide
+                    setTimeout(() => {
+                        successDiv.classList.add('d-none');
+                    }, 2000);
+                }, 1000);
                 
             } catch (error) {
                 console.error('Purchase error:', error);
