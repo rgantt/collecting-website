@@ -30,12 +30,8 @@ mkdir -p "$AWS_DIR"
 chown "$APP_USER:$APP_USER" "$AWS_DIR"
 chmod 700 "$AWS_DIR"
 
-# Install AWS CLI via pip in the app's virtual environment
-echo -e "${YELLOW}Installing AWS CLI via pip...${NC}"
-if [[ -f "/var/www/collecting-website/venv/bin/pip" ]]; then
-    /var/www/collecting-website/venv/bin/pip install awscli
-    AWS_CLI="/var/www/collecting-website/venv/bin/aws"
-else
+# Check if virtual environment exists
+if [[ ! -f "/var/www/collecting-website/venv/bin/python" ]]; then
     echo -e "${RED}Virtual environment not found. Please deploy the application first.${NC}"
     exit 1
 fi
@@ -72,13 +68,31 @@ chmod 600 "$AWS_DIR/credentials" "$AWS_DIR/config"
 
 echo -e "${GREEN}AWS credentials configured successfully!${NC}"
 
-# Test the configuration
+# Test the configuration using boto3
 echo -e "${YELLOW}Testing AWS configuration...${NC}"
-if sudo -u "$APP_USER" "$AWS_CLI" s3 ls s3://collecting-tools-gantt-pub/ &>/dev/null; then
-    echo -e "${GREEN}✅ AWS S3 access test passed!${NC}"
-    echo -e "${BLUE}You can now run the backup setup:${NC}"
-    echo "  cd /var/www/collecting-website"
-    echo "  ./setup-backup-cron.sh"
+
+# Create a simple test script
+cat > /tmp/test_s3.py << 'EOF'
+import boto3
+import sys
+try:
+    s3 = boto3.client('s3')
+    s3.list_objects_v2(Bucket='collecting-tools-gantt-pub', MaxKeys=1)
+    print("SUCCESS")
+except Exception as e:
+    print(f"ERROR: {e}")
+    sys.exit(1)
+EOF
+
+if result=$(sudo -u "$APP_USER" /var/www/collecting-website/venv/bin/python /tmp/test_s3.py 2>&1); then
+    if [[ "$result" == "SUCCESS" ]]; then
+        echo -e "${GREEN}✅ AWS S3 access test passed!${NC}"
+        echo -e "${BLUE}You can now run the backup setup:${NC}"
+        echo "  cd /var/www/collecting-website"
+        echo "  ./setup-backup-cron.sh"
+    else
+        echo -e "${YELLOW}⚠️  AWS S3 access test failed: $result${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️  AWS S3 access test failed${NC}"
     echo -e "${BLUE}Please verify:${NC}"
@@ -87,8 +101,11 @@ else
     echo "  3. Your IAM user has S3 permissions"
     echo
     echo -e "${BLUE}You can test manually with:${NC}"
-    echo "  sudo -u $APP_USER $AWS_CLI s3 ls s3://collecting-tools-gantt-pub/"
+    echo "  sudo -u $APP_USER /var/www/collecting-website/venv/bin/python /tmp/test_s3.py"
 fi
+
+# Clean up test script
+rm -f /tmp/test_s3.py
 
 echo
 echo -e "${GREEN}Setup complete!${NC}"
