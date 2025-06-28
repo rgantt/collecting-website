@@ -47,8 +47,19 @@ sudo mkdir -p $APP_DIR
 sudo chown -R actions-runner:www-data $APP_DIR
 sudo chmod -R 775 $APP_DIR
 
-# Add actions-runner to www-data group
+# Add actions-runner to www-data group and adm group (for log access)
 sudo usermod -aG www-data actions-runner
+sudo usermod -aG adm actions-runner
+
+# Create log directory and set permissions
+sudo mkdir -p /var/log
+sudo touch /var/log/collecting-website-deploy.log
+sudo chmod 664 /var/log/collecting-website-deploy.log
+sudo chown actions-runner:adm /var/log/collecting-website-deploy.log
+
+# Give actions-runner sudo permissions for deployment operations
+echo "actions-runner ALL=(ALL) NOPASSWD: /bin/systemctl, /bin/mkdir, /bin/cp, /bin/chown, /bin/chmod, /usr/bin/tee, /usr/local/bin/gunicorn" | sudo tee /etc/sudoers.d/actions-runner > /dev/null
+sudo chmod 440 /etc/sudoers.d/actions-runner
 
 # Create systemd service for the runner
 echo "📝 Creating systemd service..."

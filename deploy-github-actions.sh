@@ -29,6 +29,13 @@ warn() {
     echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
 }
 
+# Create log file with proper permissions if it doesn't exist
+if [ ! -f "$LOG_FILE" ]; then
+    sudo touch "$LOG_FILE"
+    sudo chmod 664 "$LOG_FILE"
+    sudo chown actions-runner:adm "$LOG_FILE"
+fi
+
 log "Starting GitHub Actions deployment of ${APP_NAME}..."
 
 # Create app directory if it doesn't exist
