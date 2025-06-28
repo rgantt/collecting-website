@@ -73,8 +73,8 @@ User=$APP_USER
 Group=$APP_USER
 RuntimeDirectory=$APP_NAME
 WorkingDirectory=$APP_DIR
-Environment=PATH=/home/$APP_USER/.local/bin:\$PATH
-ExecStart=/usr/local/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 --timeout 120 wsgi:app
+Environment=PATH=/var/www/.local/bin:\$PATH
+ExecStart=/var/www/.local/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 --timeout 120 wsgi:app
 ExecReload=/bin/kill -s HUP \$MAINPID
 KillMode=mixed
 TimeoutStopSec=5
