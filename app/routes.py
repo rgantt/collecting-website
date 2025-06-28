@@ -589,3 +589,59 @@ def update_collection_condition(game_id):
     except Exception as e:
         current_app.logger.error(f"Error updating collection game {game_id} condition: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@main.route('/api/game/<int:game_id>/details', methods=['PUT'])
+def update_game_details(game_id):
+    """Update the name and console of a game."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON data is required"}), 400
+        
+        name = data.get('name', '').strip()
+        console = data.get('console', '').strip()
+        
+        # Validate inputs
+        if not name:
+            return jsonify({"error": "Game name is required"}), 400
+        if not console:
+            return jsonify({"error": "Console is required"}), 400
+        
+        current_app.logger.info(f"Updating game {game_id} details - name: {name}, console: {console}")
+        
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # Check if the game exists
+            cursor.execute(
+                "SELECT id, name, console FROM physical_games WHERE id = ?",
+                (game_id,)
+            )
+            
+            game = cursor.fetchone()
+            if not game:
+                return jsonify({"error": "Game not found"}), 404
+            
+            old_name, old_console = game[1], game[2]
+            
+            # Update the game details
+            cursor.execute(
+                "UPDATE physical_games SET name = ?, console = ? WHERE id = ?",
+                (name, console, game_id)
+            )
+            
+            db.commit()
+            
+            current_app.logger.info(f"Successfully updated game {game_id} from '{old_name}' ({old_console}) to '{name}' ({console})")
+            return jsonify({
+                "message": "Game details updated successfully",
+                "game_id": game_id,
+                "name": name,
+                "console": console,
+                "old_name": old_name,
+                "old_console": old_console
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error updating game {game_id} details: {str(e)}")
+        return jsonify({"error": str(e)}), 500
