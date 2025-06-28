@@ -13,7 +13,6 @@ This guide will help you set up automatic deployment to your Ubuntu server using
 1. SSH into your Ubuntu server
 2. Run the setup script:
    ```bash
-   chmod +x setup-github-runner.sh
    ./setup-github-runner.sh
    ```
 
