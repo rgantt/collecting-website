@@ -493,3 +493,99 @@ def purchase_wishlist_game(game_id):
     except Exception as e:
         current_app.logger.error(f"Error purchasing wishlist game {game_id}: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@main.route('/api/wishlist/<int:game_id>/condition', methods=['PUT'])
+def update_wishlist_condition(game_id):
+    """Update the condition of a wishlist game."""
+    try:
+        data = request.get_json()
+        if not data or 'condition' not in data:
+            return jsonify({"error": "Condition is required"}), 400
+        
+        condition = data['condition']
+        
+        # Validate condition
+        valid_conditions = ['complete', 'loose', 'new']
+        if condition not in valid_conditions:
+            return jsonify({"error": f"Invalid condition. Must be one of: {', '.join(valid_conditions)}"}), 400
+        
+        current_app.logger.info(f"Updating wishlist game {game_id} condition to: {condition}")
+        
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # Check if the game exists in wishlist
+            cursor.execute(
+                "SELECT id FROM wanted_games WHERE physical_game = ?",
+                (game_id,)
+            )
+            
+            if not cursor.fetchone():
+                return jsonify({"error": "Game not found in wishlist"}), 404
+            
+            # Update the condition
+            cursor.execute(
+                "UPDATE wanted_games SET condition = ? WHERE physical_game = ?",
+                (condition, game_id)
+            )
+            
+            db.commit()
+            
+            current_app.logger.info(f"Successfully updated wishlist game {game_id} condition to {condition}")
+            return jsonify({
+                "message": "Condition updated successfully",
+                "game_id": game_id,
+                "condition": condition
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error updating wishlist game {game_id} condition: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@main.route('/api/collection/<int:game_id>/condition', methods=['PUT'])
+def update_collection_condition(game_id):
+    """Update the condition of a purchased collection game."""
+    try:
+        data = request.get_json()
+        if not data or 'condition' not in data:
+            return jsonify({"error": "Condition is required"}), 400
+        
+        condition = data['condition']
+        
+        # Validate condition
+        valid_conditions = ['complete', 'loose', 'new']
+        if condition not in valid_conditions:
+            return jsonify({"error": f"Invalid condition. Must be one of: {', '.join(valid_conditions)}"}), 400
+        
+        current_app.logger.info(f"Updating collection game {game_id} condition to: {condition}")
+        
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # Check if the game exists in purchased collection
+            cursor.execute(
+                "SELECT id FROM purchased_games WHERE physical_game = ?",
+                (game_id,)
+            )
+            
+            if not cursor.fetchone():
+                return jsonify({"error": "Game not found in purchased collection"}), 404
+            
+            # Update the condition
+            cursor.execute(
+                "UPDATE purchased_games SET condition = ? WHERE physical_game = ?",
+                (condition, game_id)
+            )
+            
+            db.commit()
+            
+            current_app.logger.info(f"Successfully updated collection game {game_id} condition to {condition}")
+            return jsonify({
+                "message": "Condition updated successfully",
+                "game_id": game_id,
+                "condition": condition
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error updating collection game {game_id} condition: {str(e)}")
+        return jsonify({"error": str(e)}), 500
