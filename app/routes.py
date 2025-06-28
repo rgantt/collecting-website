@@ -63,7 +63,11 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                     CASE WHEN l.id IS NOT NULL THEN 1 ELSE 0 END as is_lent,
                     l.lent_date,
                     l.lent_to,
-                    l.note
+                    l.note,
+                    CASE WHEN gfs.id IS NOT NULL THEN 1 ELSE 0 END as is_for_sale,
+                    gfs.asking_price,
+                    gfs.notes as sale_notes,
+                    gfs.date_marked as sale_date_marked
                 FROM physical_games p
                 LEFT JOIN purchased_games pg ON p.id = pg.physical_game
                 LEFT JOIN wanted_games w ON p.id = w.physical_game
@@ -78,13 +82,14 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                     )
                     AND lp.rn = 1
                 LEFT JOIN lent_games l ON pg.id = l.purchased_game
+                LEFT JOIN games_for_sale gfs ON p.id = gfs.physical_game_id
                 WHERE pg.physical_game IS NOT NULL OR w.physical_game IS NOT NULL
                 GROUP BY p.id
             )
             SELECT 
                 id, name, console, condition, source_name, 
                 purchase_price, current_price, date, is_wanted, is_lent,
-                lent_date, lent_to, note
+                lent_date, lent_to, note, is_for_sale, asking_price, sale_notes, sale_date_marked
             FROM games_with_prices
             ORDER BY 
                 CASE WHEN {sort_field} IS NULL THEN 1 ELSE 0 END,
@@ -97,7 +102,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
         
         collection_games = []
         for row in cursor.fetchall():
-            id, name, console, condition, source, purchase_price, current_price, date, is_wanted, is_lent, lent_date, lent_to, note = row
+            id, name, console, condition, source, purchase_price, current_price, date, is_wanted, is_lent, lent_date, lent_to, note, is_for_sale, asking_price, sale_notes, sale_date_marked = row
             collection_games.append({
                 'id': id,
                 'name': name,
@@ -111,7 +116,11 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                 'is_lent': bool(is_lent),
                 'lent_date': lent_date,
                 'lent_to': lent_to,
-                'note': note
+                'note': note,
+                'is_for_sale': bool(is_for_sale),
+                'asking_price': float(asking_price) if asking_price else None,
+                'sale_notes': sale_notes,
+                'sale_date_marked': sale_date_marked
             })
         
         current_app.logger.info(f'Found {len(collection_games)} games')
@@ -692,3 +701,113 @@ def remove_from_wishlist(game_id):
     except Exception as e:
         current_app.logger.error(f"Error removing game {game_id} from wishlist: {str(e)}")
         return jsonify({"error": "Failed to remove game from wishlist"}), 500
+
+
+@main.route('/api/game/<int:game_id>/mark_for_sale', methods=['POST'])
+def mark_game_for_sale(game_id):
+    """Mark an owned game for sale."""
+    try:
+        data = request.get_json() or {}
+        asking_price = data.get('asking_price')
+        notes = data.get('notes', '').strip()
+        
+        # Convert asking_price to float if provided
+        if asking_price:
+            try:
+                asking_price = float(asking_price)
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid asking price format"}), 400
+        
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # First, verify the game exists and is owned (has a purchase record)
+            cursor.execute("""
+                SELECT pg.name, pg.console, pur.acquisition_date, pur.source, pur.price
+                FROM physical_games pg
+                JOIN purchased_games pur ON pg.id = pur.physical_game
+                WHERE pg.id = ?
+            """, (game_id,))
+            
+            game_info = cursor.fetchone()
+            if not game_info:
+                return jsonify({"error": "Game not found or not owned"}), 404
+            
+            name, console, orig_date, orig_source, orig_price = game_info
+            
+            # Check if already marked for sale
+            cursor.execute(
+                "SELECT id FROM games_for_sale WHERE physical_game_id = ?",
+                (game_id,)
+            )
+            if cursor.fetchone():
+                return jsonify({"error": "Game is already marked for sale"}), 400
+            
+            # Insert into games_for_sale with copied purchase information
+            cursor.execute("""
+                INSERT INTO games_for_sale 
+                (physical_game_id, asking_price, notes, 
+                 original_acquisition_date, original_source, original_purchase_price)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (game_id, asking_price, notes, orig_date, orig_source, orig_price))
+            
+            db.commit()
+            current_app.logger.info(f"Successfully marked game {game_id} ({name} - {console}) for sale")
+            
+            return jsonify({
+                "message": "Game marked for sale successfully",
+                "game_id": game_id,
+                "name": name,
+                "console": console,
+                "asking_price": asking_price,
+                "notes": notes
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error marking game {game_id} for sale: {str(e)}")
+        return jsonify({"error": "Failed to mark game for sale"}), 500
+
+
+@main.route('/api/game/<int:game_id>/unmark_for_sale', methods=['DELETE'])
+def unmark_game_for_sale(game_id):
+    """Remove a game from the for sale list."""
+    try:
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # First get the game info for logging
+            cursor.execute("""
+                SELECT pg.name, pg.console 
+                FROM games_for_sale gfs 
+                JOIN physical_games pg ON gfs.physical_game_id = pg.id 
+                WHERE gfs.physical_game_id = ?
+            """, (game_id,))
+            
+            result = cursor.fetchone()
+            if not result:
+                return jsonify({"error": "Game not found in for sale list"}), 404
+            
+            game_name, game_console = result
+            
+            # Remove from games_for_sale
+            cursor.execute(
+                "DELETE FROM games_for_sale WHERE physical_game_id = ?",
+                (game_id,)
+            )
+            
+            if cursor.rowcount == 0:
+                return jsonify({"error": "Game not found in for sale list"}), 404
+            
+            db.commit()
+            current_app.logger.info(f"Successfully unmarked game {game_id} ({game_name} - {game_console}) for sale")
+            
+            return jsonify({
+                "message": "Game removed from sale list successfully",
+                "game_id": game_id,
+                "name": game_name,
+                "console": game_console
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error unmarking game {game_id} for sale: {str(e)}")
+        return jsonify({"error": "Failed to remove game from sale list"}), 500
