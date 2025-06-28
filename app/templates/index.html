@@ -2308,6 +2308,7 @@
         function openMarkForSaleModal(gameId, gameName, gameConsole) {
             const modal = document.getElementById('markForSaleModal');
             const gameInfo = document.getElementById('markForSaleGameInfo');
+            const submitBtn = document.getElementById('confirmMarkForSaleBtn');
             
             modal.dataset.gameId = gameId;
             modal.dataset.gameName = gameName;
@@ -2322,6 +2323,10 @@
             // Clear messages
             document.getElementById('markForSaleError').classList.add('d-none');
             document.getElementById('markForSaleSuccess').classList.add('d-none');
+            
+            // Reset submit button state
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Mark for Sale';
             
             const bootstrapModal = new bootstrap.Modal(modal);
             bootstrapModal.show();
