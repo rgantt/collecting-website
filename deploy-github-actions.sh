@@ -51,7 +51,9 @@ sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 # Install Python dependencies
 log "Installing Python dependencies..."
 cd "$APP_DIR"
-sudo -u "$APP_USER" python3 -m pip install --user -r requirements.txt
+
+# Use system packages for externally managed Python environment
+sudo -H -u "$APP_USER" python3 -m pip install --break-system-packages --user -r requirements.txt
 
 # Create/update systemd service file
 log "Updating systemd service..."
