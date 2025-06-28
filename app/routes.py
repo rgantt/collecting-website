@@ -51,7 +51,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
             ),
             games_with_prices AS (
                 SELECT 
-                    p.id as id,
+                    COALESCE(pg.id, p.id) as id,
                     p.name as name,
                     p.console as console,
                     COALESCE(w.condition, pg.condition) as condition,
@@ -84,7 +84,6 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                 LEFT JOIN lent_games l ON pg.id = l.purchased_game
                 LEFT JOIN games_for_sale gfs ON p.id = gfs.physical_game_id
                 WHERE pg.physical_game IS NOT NULL OR w.physical_game IS NOT NULL
-                GROUP BY p.id
             )
             SELECT 
                 id, name, console, condition, source_name, 
