@@ -1,14 +1,16 @@
 # Collecting Tools Web Application
 
-A web interface for managing and tracking video game collections, designed to be deployed on AWS Elastic Beanstalk.
+A web interface for managing and tracking video game collections, designed for self-hosted deployment on Ubuntu servers with automated S3 backup functionality.
 
 ## Features
 
 - Game collection management
-- Authentication system
+- Price tracking and updates
+- Wishlist functionality
 - Responsive web interface
-- Database persistence
-- AWS deployment ready
+- SQLite database persistence
+- **Automated S3 database backups**
+- Self-hosted deployment ready
 
 ## Setup
 
@@ -38,38 +40,77 @@ python3 application.py
 
 The application uses:
 - Flask 3.0.0 for the web framework
-- SQLite for local development database
+- SQLite for database persistence
 - Jinja2 for templating
-- Authlib for authentication
+- Boto3 for AWS S3 integration
+- Gunicorn for production deployment
 
 ## Deployment
 
-The application is configured for AWS Elastic Beanstalk deployment:
+The application is designed for self-hosted Ubuntu deployment:
 
-1. Ensure you have the AWS CLI and EB CLI installed
-2. Configure your AWS credentials
-3. Deploy using the provided script:
+### Quick Deployment
+1. Deploy using the provided script:
 ```bash
-./deploy-local.sh
+sudo ./deploy-local-simple.sh
 ```
+
+### Manual Setup
+1. Ensure you have Python 3.8+ and required system packages
+2. Configure your environment variables
+3. Install dependencies and set up the service
+
+### GitHub Actions Deployment
+For automated deployment, see `GITHUB_ACTIONS_SETUP.md`
+
+## S3 Database Backup
+
+The application includes automated S3 backup functionality:
+
+### Features
+- Automated backups every 6 hours via cron job
+- Current backup stored as `games.db` in S3
+- Historical backups stored with timestamps
+- Comprehensive logging and error handling
+
+### Setup
+1. Configure AWS credentials:
+```bash
+sudo ./setup-aws-credentials.sh
+```
+
+2. Set up the backup system:
+```bash
+sudo ./setup-backup-cron.sh
+```
+
+### Manual Backup
+```bash
+sudo -u www-data python3 /var/www/collecting-website/backup_to_s3.py
+```
+
+For detailed backup configuration, see `BACKUP_SETUP.md`.
 
 ## Project Structure
 
 ```
 collecting-website/
-├── .elasticbeanstalk/    # AWS EB configuration
-├── app/                   # Application code
+├── .github/              # GitHub Actions workflows
+├── app/                  # Application code
 │   ├── __init__.py       # App initialization
 │   ├── routes.py         # URL routes and views
-│   ├── auth.py           # Authentication logic
+│   ├── price_retrieval.py # Price update functionality
 │   ├── templates/        # Jinja2 templates
 │   └── static/           # CSS, JS, and assets
-├── .env                  # Environment variables (git-ignored)
-├── .env.example          # Example environment configuration
-├── application.py        # Application entry point
+├── backup_to_s3.py       # S3 backup script
+├── setup-backup-cron.sh  # Backup cron job setup
+├── setup-aws-credentials.sh # AWS credentials setup
+├── deploy-local-simple.sh # Local deployment script
+├── deploy-github-actions.sh # GitHub Actions deployment
+├── wsgi.py              # WSGI entry point
 ├── config.py            # Configuration settings
-├── deploy-local.sh      # Deployment script
 ├── requirements.txt     # Python dependencies
+├── BACKUP_SETUP.md      # Backup system documentation
 └── README.md
 ```
 

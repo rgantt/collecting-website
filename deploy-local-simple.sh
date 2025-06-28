@@ -145,6 +145,24 @@ if ! systemctl is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
     systemctl enable "$SERVICE_NAME"
 fi
 
+# Set up S3 backup system
+log "Setting up S3 database backup..."
+if [[ -f "$APP_DIR/setup-backup-cron.sh" ]]; then
+    chmod +x "$APP_DIR/setup-backup-cron.sh"
+    chmod +x "$APP_DIR/backup_to_s3.py"
+    
+    # Run setup as the app user to avoid permission issues
+    if sudo -u "$APP_USER" bash -c "cd $APP_DIR && ./setup-backup-cron.sh" 2>/dev/null; then
+        log "✅ S3 backup system configured successfully"
+    else
+        warn "⚠️  S3 backup setup failed - you may need to configure AWS credentials manually"
+        warn "    Run: sudo -u $APP_USER aws configure"
+        warn "    Then: cd $APP_DIR && ./setup-backup-cron.sh"
+    fi
+else
+    warn "⚠️  setup-backup-cron.sh not found, skipping backup setup"
+fi
+
 # Start service
 log "Starting ${APP_NAME} service..."
 systemctl start "$SERVICE_NAME"
