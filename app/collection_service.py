@@ -108,38 +108,15 @@ class CollectionService:
                     physical_game_id = cursor.lastrowid
                     logger.info(f"Added new physical game with ID: {physical_game_id}")
                 
-                # Check if purchased game already exists
+                # Always insert a new purchased_games entry to allow multiple copies
                 cursor.execute(
-                    "SELECT id FROM purchased_games WHERE physical_game = ?",
-                    (physical_game_id,)
+                    """INSERT INTO purchased_games 
+                       (physical_game, condition, acquisition_date, source, price) 
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (physical_game_id, condition, purchase_date, purchase_source, purchase_price)
                 )
-                result = cursor.fetchone()
-                
-                if result:
-                    logger.warning(f"Game already exists in collection with ID: {result[0]}")
-                    # Optionally update the purchased entry here
-                    purchased_game_id = result[0]
-                    # Update if needed
-                    cursor.execute(
-                        """UPDATE purchased_games SET 
-                           condition = ?, 
-                           acquisition_date = ?, 
-                           source = ?, 
-                           price = ? 
-                           WHERE id = ?""",
-                        (condition, purchase_date, purchase_source, purchase_price, purchased_game_id)
-                    )
-                    logger.info(f"Updated existing purchased game with ID: {purchased_game_id}")
-                else:
-                    # Insert into purchased_games
-                    cursor.execute(
-                        """INSERT INTO purchased_games 
-                           (physical_game, condition, acquisition_date, source, price) 
-                           VALUES (?, ?, ?, ?, ?)""",
-                        (physical_game_id, condition, purchase_date, purchase_source, purchase_price)
-                    )
-                    purchased_game_id = cursor.lastrowid
-                    logger.info(f"Added new game to collection with ID: {purchased_game_id}")
+                purchased_game_id = cursor.lastrowid
+                logger.info(f"Added new game to collection with ID: {purchased_game_id}")
                 
                 # Create association between physical_game and pricecharting_game if not exists
                 cursor.execute(
