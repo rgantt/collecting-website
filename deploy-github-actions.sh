@@ -52,6 +52,11 @@ sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 log "Installing Python dependencies..."
 cd "$APP_DIR"
 
+# Create .local directory structure for www-data user
+sudo mkdir -p "/var/www/.local/bin"
+sudo mkdir -p "/var/www/.local/lib/python3.10/site-packages"
+sudo chown -R "$APP_USER:$APP_USER" "/var/www/.local"
+
 # Use system packages for externally managed Python environment
 sudo -H -u "$APP_USER" python3 -m pip install --break-system-packages --user -r requirements.txt
 
