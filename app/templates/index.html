@@ -582,6 +582,36 @@
         </div>
     </div>
 
+    <!-- Remove from Wishlist Confirmation Modal -->
+    <div class="modal fade" id="removeWishlistModal" tabindex="-1" aria-labelledby="removeWishlistModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="removeWishlistModalLabel">Remove from Wishlist</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="removeWishlistGameInfo" class="mb-3 p-3 border rounded bg-light">
+                        <h6 id="removeWishlistGameName" class="mb-1"></h6>
+                        <small id="removeWishlistGameConsole" class="text-muted"></small>
+                    </div>
+                    
+                    <p class="mb-3">Are you sure you want to remove this game from your wishlist?</p>
+                    <p class="text-muted small mb-0">This action cannot be undone. You can always add the game back to your wishlist later if needed.</p>
+                    
+                    <div id="removeWishlistError" class="alert alert-danger d-none mt-3"></div>
+                    <div id="removeWishlistSuccess" class="alert alert-success d-none mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmRemoveWishlistBtn">
+                        <i class="fas fa-trash-alt me-1"></i>Remove from Wishlist
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
@@ -848,6 +878,13 @@
                                                         data-game-console="${game.console}"
                                                         style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
                                                     📦 Purchase
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger ms-2 remove-wishlist-btn" 
+                                                        data-game-id="${game.id}" 
+                                                        data-game-name="${game.name}"
+                                                        data-game-console="${game.console}"
+                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                    🗑️ Remove
                                                 </button>
                                             </dd>
                                         </div>
@@ -1587,6 +1624,19 @@
                     openPurchaseModal(gameId, gameName, gameConsole);
                 }
             }
+            
+            // Handle remove from wishlist button clicks
+            if (e.target.classList.contains('remove-wishlist-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const gameId = e.target.dataset.gameId;
+                const gameName = e.target.dataset.gameName;
+                const gameConsole = e.target.dataset.gameConsole;
+                
+                if (gameId && gameName && gameConsole) {
+                    removeFromWishlist(gameId, gameName, gameConsole, e.target);
+                }
+            }
         });
         
         // Purchase modal functionality
@@ -1615,6 +1665,113 @@
             const modal = new bootstrap.Modal(purchaseModal);
             modal.show();
         }
+        
+        // Remove from wishlist functionality
+        function removeFromWishlist(gameId, gameName, gameConsole, button) {
+            openRemoveWishlistModal(gameId, gameName, gameConsole, button);
+        }
+        
+        // Open remove wishlist confirmation modal
+        function openRemoveWishlistModal(gameId, gameName, gameConsole, button) {
+            // Clear any previous error/success messages
+            document.getElementById('removeWishlistError').classList.add('d-none');
+            document.getElementById('removeWishlistSuccess').classList.add('d-none');
+            
+            // Set game info in modal
+            document.getElementById('removeWishlistGameName').textContent = gameName;
+            document.getElementById('removeWishlistGameConsole').textContent = gameConsole;
+            
+            // Store game data and button reference on the modal for later use
+            const removeModal = document.getElementById('removeWishlistModal');
+            removeModal.dataset.gameId = gameId;
+            removeModal.dataset.gameName = gameName;
+            removeModal.dataset.gameConsole = gameConsole;
+            removeModal.originalButton = button; // Store button reference
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(removeModal);
+            modal.show();
+        }
+        
+        // Handle remove confirmation
+        document.getElementById('confirmRemoveWishlistBtn').addEventListener('click', async () => {
+            const removeModal = document.getElementById('removeWishlistModal');
+            const gameId = removeModal.dataset.gameId;
+            const gameName = removeModal.dataset.gameName;
+            const gameConsole = removeModal.dataset.gameConsole;
+            const button = removeModal.originalButton;
+            
+            const errorDiv = document.getElementById('removeWishlistError');
+            const successDiv = document.getElementById('removeWishlistSuccess');
+            const confirmBtn = document.getElementById('confirmRemoveWishlistBtn');
+            
+            // Clear previous messages
+            errorDiv.classList.add('d-none');
+            successDiv.classList.add('d-none');
+            
+            // Update button state
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = 'Removing...';
+            
+            // Disable confirm button during request
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Removing...';
+            
+            try {
+                const response = await fetch(`/api/wishlist/${gameId}/remove`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Show success message
+                    successDiv.textContent = `"${gameName}" has been removed from your wishlist.`;
+                    successDiv.classList.remove('d-none');
+                    
+                    // Update original button
+                    button.textContent = 'Removed!';
+                    button.classList.remove('btn-outline-danger');
+                    button.classList.add('btn-success');
+                    
+                    // Auto-close modal and reload games after 1.5 seconds
+                    setTimeout(() => {
+                        const modalInstance = bootstrap.Modal.getInstance(removeModal);
+                        modalInstance.hide();
+                        loadAllGames();
+                    }, 1500);
+                } else {
+                    throw new Error(result.error || 'Failed to remove game from wishlist');
+                }
+            } catch (error) {
+                console.error('Remove from wishlist error:', error);
+                
+                // Show error message
+                errorDiv.textContent = error.message || 'An error occurred while removing the game from your wishlist.';
+                errorDiv.classList.remove('d-none');
+                
+                // Update original button to show failure
+                button.textContent = 'Failed';
+                button.classList.remove('btn-outline-danger');
+                button.classList.add('btn-danger');
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('btn-danger');
+                    button.classList.add('btn-outline-danger');
+                    button.disabled = false;
+                }, 2000);
+            } finally {
+                // Re-enable confirm button
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-trash-alt me-1"></i>Remove from Wishlist';
+            }
+        });
         
         // Handle purchase form submission
         document.getElementById('submitPurchaseBtn').addEventListener('click', async () => {

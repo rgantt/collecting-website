@@ -644,4 +644,51 @@ def update_game_details(game_id):
             
     except Exception as e:
         current_app.logger.error(f"Error updating game {game_id} details: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to update game details"}), 500
+
+@main.route('/api/wishlist/<int:game_id>/remove', methods=['DELETE'])
+def remove_from_wishlist(game_id):
+    """Remove a game from the wishlist."""
+    try:
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # First get the game info for logging
+            cursor.execute(
+                """SELECT pg.name, pg.console 
+                   FROM wanted_games wg 
+                   JOIN physical_games pg ON wg.physical_game = pg.id 
+                   WHERE wg.physical_game = ?""",
+                (game_id,)
+            )
+            result = cursor.fetchone()
+            
+            if not result:
+                current_app.logger.warning(f"Game {game_id} not found in wishlist")
+                return jsonify({"error": "Game not found in wishlist"}), 404
+            
+            game_name, game_console = result
+            
+            # Remove from wishlist
+            cursor.execute(
+                "DELETE FROM wanted_games WHERE physical_game = ?",
+                (game_id,)
+            )
+            
+            if cursor.rowcount == 0:
+                current_app.logger.warning(f"No wishlist entry found for game {game_id}")
+                return jsonify({"error": "Game not found in wishlist"}), 404
+            
+            db.commit()
+            current_app.logger.info(f"Successfully removed game {game_id} ({game_name} - {game_console}) from wishlist")
+            
+            return jsonify({
+                "message": "Game removed from wishlist successfully",
+                "game_id": game_id,
+                "name": game_name,
+                "console": game_console
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error removing game {game_id} from wishlist: {str(e)}")
+        return jsonify({"error": "Failed to remove game from wishlist"}), 500
