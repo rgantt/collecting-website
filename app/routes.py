@@ -51,7 +51,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
             ),
             games_with_prices AS (
                 SELECT 
-                    COALESCE(pg.id, p.id) as id,
+                    p.id as id,
                     p.name as name,
                     p.console as console,
                     COALESCE(w.condition, pg.condition) as condition,
