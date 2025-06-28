@@ -363,6 +363,27 @@ def update_game_price(game_id):
     try:
         current_app.logger.info(f"Updating price for game ID: {game_id}")
         
+        # First check if the game exists and has a pricecharting_id
+        with get_db() as db:
+            cursor = db.cursor()
+            cursor.execute("""
+                SELECT p.name, pc.pricecharting_id
+                FROM physical_games p
+                LEFT JOIN physical_games_pricecharting_games pcg ON p.id = pcg.physical_game
+                LEFT JOIN pricecharting_games pc ON pcg.pricecharting_game = pc.id
+                WHERE p.id = ?
+            """, (game_id,))
+            
+            result = cursor.fetchone()
+            if not result:
+                current_app.logger.warning(f"Game with ID {game_id} not found")
+                return jsonify({"success": False, "error": "Game not found"}), 404
+                
+            game_name, pricecharting_id = result
+            if not pricecharting_id:
+                current_app.logger.warning(f"Game '{game_name}' (ID: {game_id}) has no PriceCharting association")
+                return jsonify({"success": False, "error": "This game is not linked to PriceCharting and cannot have prices updated. Games added manually may not have price tracking."}), 400
+        
         with get_db() as db:
             success = update_game_prices(game_id, db)
             
@@ -370,8 +391,8 @@ def update_game_price(game_id):
                 current_app.logger.info(f"Successfully updated price for game {game_id}")
                 return jsonify({"success": True, "message": "Price updated successfully"})
             else:
-                current_app.logger.warning(f"Failed to update price for game {game_id}")
-                return jsonify({"success": False, "error": "Failed to update price"}), 400
+                current_app.logger.warning(f"Failed to update price for game {game_id} - price retrieval failed")
+                return jsonify({"success": False, "error": "Failed to retrieve current prices from PriceCharting"}), 400
                 
     except Exception as e:
         current_app.logger.error(f"Error updating price for game {game_id}: {str(e)}")

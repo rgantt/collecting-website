@@ -141,6 +141,22 @@ class CollectionService:
                     purchased_game_id = cursor.lastrowid
                     logger.info(f"Added new game to collection with ID: {purchased_game_id}")
                 
+                # Create association between physical_game and pricecharting_game if not exists
+                cursor.execute(
+                    "SELECT id FROM physical_games_pricecharting_games WHERE physical_game = ? AND pricecharting_game = ?",
+                    (physical_game_id, pricecharting_game_id)
+                )
+                association_result = cursor.fetchone()
+                
+                if not association_result:
+                    cursor.execute(
+                        "INSERT INTO physical_games_pricecharting_games (physical_game, pricecharting_game) VALUES (?, ?)",
+                        (physical_game_id, pricecharting_game_id)
+                    )
+                    logger.info(f"Created association between physical_game {physical_game_id} and pricecharting_game {pricecharting_game_id}")
+                else:
+                    logger.info(f"Association already exists between physical_game {physical_game_id} and pricecharting_game {pricecharting_game_id}")
+                
                 # Commit the transaction
                 conn.commit()
                 

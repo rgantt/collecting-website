@@ -1333,7 +1333,7 @@
                         button.classList.add('btn-outline-primary');
                     }, 2000);
                     
-                    // Optionally reload games to show updated prices
+                    // Reload games to show updated prices
                     setTimeout(() => {
                         loadAllGames();
                     }, 1000);
@@ -1407,6 +1407,7 @@
             originalFetchPriceHistory(gameId);
             fetchLastPriceUpdate(gameId);
         };
+
     </script>
 
     <!-- Service Worker Registration -->
