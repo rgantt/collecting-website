@@ -30,11 +30,14 @@ mkdir -p "$AWS_DIR"
 chown "$APP_USER:$APP_USER" "$AWS_DIR"
 chmod 700 "$AWS_DIR"
 
-# Check if AWS CLI is installed
-if ! command -v aws &> /dev/null; then
-    echo -e "${YELLOW}Installing AWS CLI...${NC}"
-    apt-get update
-    apt-get install -y awscli
+# Install AWS CLI via pip in the app's virtual environment
+echo -e "${YELLOW}Installing AWS CLI via pip...${NC}"
+if [[ -f "/var/www/collecting-website/venv/bin/pip" ]]; then
+    /var/www/collecting-website/venv/bin/pip install awscli
+    AWS_CLI="/var/www/collecting-website/venv/bin/aws"
+else
+    echo -e "${RED}Virtual environment not found. Please deploy the application first.${NC}"
+    exit 1
 fi
 
 echo -e "${YELLOW}Please provide your AWS credentials:${NC}"
@@ -71,7 +74,7 @@ echo -e "${GREEN}AWS credentials configured successfully!${NC}"
 
 # Test the configuration
 echo -e "${YELLOW}Testing AWS configuration...${NC}"
-if sudo -u "$APP_USER" aws s3 ls s3://collecting-tools-gantt-pub/ &>/dev/null; then
+if sudo -u "$APP_USER" "$AWS_CLI" s3 ls s3://collecting-tools-gantt-pub/ &>/dev/null; then
     echo -e "${GREEN}✅ AWS S3 access test passed!${NC}"
     echo -e "${BLUE}You can now run the backup setup:${NC}"
     echo "  cd /var/www/collecting-website"
@@ -84,7 +87,7 @@ else
     echo "  3. Your IAM user has S3 permissions"
     echo
     echo -e "${BLUE}You can test manually with:${NC}"
-    echo "  sudo -u $APP_USER aws s3 ls s3://collecting-tools-gantt-pub/"
+    echo "  sudo -u $APP_USER $AWS_CLI s3 ls s3://collecting-tools-gantt-pub/"
 fi
 
 echo
