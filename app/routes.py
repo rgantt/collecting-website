@@ -811,3 +811,110 @@ def unmark_game_for_sale(game_id):
     except Exception as e:
         current_app.logger.error(f"Error unmarking game {game_id} for sale: {str(e)}")
         return jsonify({"error": "Failed to remove game from sale list"}), 500
+
+
+@main.route('/api/game/<int:game_id>/mark_as_lent', methods=['POST'])
+def mark_game_as_lent(game_id):
+    """Mark an owned game as lent out."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        lent_date = data.get('lent_date')
+        lent_to = data.get('lent_to', '').strip()
+        
+        if not lent_date:
+            return jsonify({"error": "Lent date is required"}), 400
+            
+        if not lent_to:
+            return jsonify({"error": "Lent to field is required"}), 400
+            
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # Check if game exists and is owned (not wanted)
+            cursor.execute("""
+                SELECT pg.id, pg.name, pg.console, p.id as purchased_id
+                FROM physical_games pg
+                JOIN purchased_games p ON pg.id = p.physical_game
+                WHERE pg.id = ? AND p.acquisition_date IS NOT NULL
+            """, (game_id,))
+            
+            game = cursor.fetchone()
+            if not game:
+                return jsonify({"error": "Game not found or not owned"}), 404
+                
+            game_id_db, game_name, game_console, purchased_id = game
+            
+            # Check if game is already lent out
+            cursor.execute("""
+                SELECT id FROM lent_games WHERE purchased_game = ?
+            """, (purchased_id,))
+            
+            if cursor.fetchone():
+                return jsonify({"error": "Game is already marked as lent out"}), 400
+            
+            # Add to lent_games table
+            cursor.execute("""
+                INSERT INTO lent_games (purchased_game, lent_date, lent_to) 
+                VALUES (?, ?, ?)
+            """, (purchased_id, lent_date, lent_to))
+            
+            db.commit()
+            current_app.logger.info(f"Successfully marked game {game_id} ({game_name} - {game_console}) as lent out to {lent_to}")
+            
+            return jsonify({
+                "message": "Game marked as lent out successfully",
+                "game_id": game_id,
+                "name": game_name,
+                "console": game_console,
+                "lent_date": lent_date,
+                "lent_to": lent_to
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error marking game {game_id} as lent out: {str(e)}")
+        return jsonify({"error": "Failed to mark game as lent out"}), 500
+
+
+@main.route('/api/game/<int:game_id>/unmark_as_lent', methods=['DELETE'])
+def unmark_game_as_lent(game_id):
+    """Remove a game from the lent out list."""
+    try:
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # Check if game exists and is lent out
+            cursor.execute("""
+                SELECT pg.id, pg.name, pg.console, l.lent_to, p.id as purchased_id
+                FROM physical_games pg
+                JOIN purchased_games p ON pg.id = p.physical_game
+                JOIN lent_games l ON p.id = l.purchased_game
+                WHERE pg.id = ?
+            """, (game_id,))
+            
+            game = cursor.fetchone()
+            if not game:
+                return jsonify({"error": "Game not found or not lent out"}), 404
+                
+            game_id_db, game_name, game_console, lent_to, purchased_id = game
+            
+            # Remove from lent_games table
+            cursor.execute("""
+                DELETE FROM lent_games WHERE purchased_game = ?
+            """, (purchased_id,))
+            
+            db.commit()
+            current_app.logger.info(f"Successfully unmarked game {game_id} ({game_name} - {game_console}) as lent out (was lent to {lent_to})")
+            
+            return jsonify({
+                "message": "Game unmarked as lent out successfully",
+                "game_id": game_id,
+                "name": game_name,
+                "console": game_console
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error unmarking game {game_id} as lent out: {str(e)}")
+        return jsonify({"error": "Failed to unmark game as lent out"}), 500

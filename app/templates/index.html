@@ -654,6 +654,77 @@
         </div>
     </div>
 
+    <!-- Mark as Lent Modal -->
+    <div class="modal fade" id="markLentModal" tabindex="-1" aria-labelledby="markLentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="markLentModalLabel">Mark Game as Lent Out</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Game:</strong> <span id="markLentGameInfo"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="lentDateInput" class="form-label">Lent Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="lentDateInput" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="lentToInput" class="form-label">Lent To <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="lentToInput" 
+                               placeholder="Enter person or organization name" required>
+                    </div>
+                    
+                    <div id="markLentError" class="alert alert-danger d-none"></div>
+                    <div id="markLentSuccess" class="alert alert-success d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmMarkLentBtn">
+                        <i class="fas fa-share me-1"></i>Mark as Lent
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unmark as Lent Confirmation Modal -->
+    <div class="modal fade" id="unmarkLentModal" tabindex="-1" aria-labelledby="unmarkLentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="unmarkLentModalLabel">Return Game from Lent</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Game:</strong> <span id="unmarkLentGameInfo"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Currently lent to:</strong> <span id="unmarkLentToInfo"></span>
+                    </div>
+                    
+                    <p class="text-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        This will mark the game as returned and remove it from your lent out list.
+                    </p>
+                    
+                    <div id="unmarkLentError" class="alert alert-danger d-none"></div>
+                    <div id="unmarkLentSuccess" class="alert alert-success d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmUnmarkLentBtn">
+                        <i class="fas fa-undo me-1"></i>Mark as Returned
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1012,6 +1083,7 @@
                                                 </button>
                                             </dd>
                                         </div>
+                                        `}
                                         <div class="full-width">
                                             <dt>Actions</dt>
                                             <dd>
@@ -1032,9 +1104,26 @@
                                                     💰 Mark for Sale
                                                 </button>
                                                 `}
+                                                ${game.is_lent ? `
+                                                <button class="btn btn-sm btn-outline-danger unmark-lent-btn" 
+                                                        data-game-id="${game.id}" 
+                                                        data-game-name="${game.name}"
+                                                        data-game-console="${game.console}"
+                                                        data-lent-to="${game.lent_to}"
+                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;">
+                                                    🔄 Return from Lent
+                                                </button>
+                                                ` : `
+                                                <button class="btn btn-sm btn-outline-primary mark-lent-btn" 
+                                                        data-game-id="${game.id}" 
+                                                        data-game-name="${game.name}"
+                                                        data-game-console="${game.console}"
+                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;">
+                                                    📤 Mark as Lent
+                                                </button>
+                                                `}
                                             </dd>
                                         </div>
-                                        `}
                                     </dl>
                                     <div class="full-width">
                                         <dt>Price History</dt>
@@ -2347,6 +2436,206 @@
                 alert('Failed to unmark game for sale: ' + error.message);
             }
         }
+
+        // Mark as Lent functionality
+        function openMarkLentModal(gameId, gameName, gameConsole) {
+            const modal = document.getElementById('markLentModal');
+            const gameInfo = document.getElementById('markLentGameInfo');
+            
+            modal.dataset.gameId = gameId;
+            modal.dataset.gameName = gameName;
+            modal.dataset.gameConsole = gameConsole;
+            
+            gameInfo.textContent = `${gameName} (${gameConsole})`;
+            
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('lentDateInput').value = today;
+            
+            // Clear previous values
+            document.getElementById('lentToInput').value = '';
+            
+            // Clear messages
+            document.getElementById('markLentError').classList.add('d-none');
+            document.getElementById('markLentSuccess').classList.add('d-none');
+            
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+        }
+
+        // Set up event delegation for mark as lent buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('mark-lent-btn')) {
+                e.preventDefault();
+                const gameId = e.target.dataset.gameId;
+                const gameName = e.target.dataset.gameName;
+                const gameConsole = e.target.dataset.gameConsole;
+                openMarkLentModal(gameId, gameName, gameConsole);
+            }
+        });
+
+        // Handle mark as lent confirmation
+        document.getElementById('confirmMarkLentBtn').addEventListener('click', async () => {
+            const modal = document.getElementById('markLentModal');
+            const gameId = modal.dataset.gameId;
+            const lentDate = document.getElementById('lentDateInput').value;
+            const lentTo = document.getElementById('lentToInput').value.trim();
+            const errorDiv = document.getElementById('markLentError');
+            const successDiv = document.getElementById('markLentSuccess');
+            const submitBtn = document.getElementById('confirmMarkLentBtn');
+            
+            // Clear previous messages
+            errorDiv.classList.add('d-none');
+            successDiv.classList.add('d-none');
+            
+            // Validate inputs
+            if (!lentDate) {
+                errorDiv.textContent = 'Lent date is required';
+                errorDiv.classList.remove('d-none');
+                return;
+            }
+            
+            if (!lentTo) {
+                errorDiv.textContent = 'Lent to field is required';
+                errorDiv.classList.remove('d-none');
+                return;
+            }
+            
+            // Update button state
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Marking as Lent...';
+            
+            try {
+                const requestBody = {
+                    lent_date: lentDate,
+                    lent_to: lentTo
+                };
+                
+                const response = await fetch(`/api/game/${gameId}/mark_as_lent`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to mark game as lent out');
+                }
+                
+                const result = await response.json();
+                
+                // Show success message
+                successDiv.textContent = 'Game marked as lent out successfully!';
+                successDiv.classList.remove('d-none');
+                
+                // Update button
+                submitBtn.textContent = 'Marked as Lent!';
+                
+                // Close modal after delay and refresh games
+                setTimeout(() => {
+                    const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                    bootstrapModal.hide();
+                    loadAllGames();
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Error marking game as lent out:', error);
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove('d-none');
+                
+                // Reset button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Mark as Lent';
+            }
+        });
+
+        // Unmark as Lent functionality
+        function openUnmarkLentModal(gameId, gameName, gameConsole, lentTo) {
+            const modal = document.getElementById('unmarkLentModal');
+            const gameInfo = document.getElementById('unmarkLentGameInfo');
+            const lentToInfo = document.getElementById('unmarkLentToInfo');
+            
+            modal.dataset.gameId = gameId;
+            modal.dataset.gameName = gameName;
+            modal.dataset.gameConsole = gameConsole;
+            
+            gameInfo.textContent = `${gameName} (${gameConsole})`;
+            lentToInfo.textContent = lentTo;
+            
+            // Clear messages
+            document.getElementById('unmarkLentError').classList.add('d-none');
+            document.getElementById('unmarkLentSuccess').classList.add('d-none');
+            
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+        }
+
+        // Set up event delegation for unmark as lent buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('unmark-lent-btn')) {
+                e.preventDefault();
+                const gameId = e.target.dataset.gameId;
+                const gameName = e.target.dataset.gameName;
+                const gameConsole = e.target.dataset.gameConsole;
+                const lentTo = e.target.dataset.lentTo;
+                openUnmarkLentModal(gameId, gameName, gameConsole, lentTo);
+            }
+        });
+
+        // Handle unmark as lent confirmation
+        document.getElementById('confirmUnmarkLentBtn').addEventListener('click', async () => {
+            const modal = document.getElementById('unmarkLentModal');
+            const gameId = modal.dataset.gameId;
+            const errorDiv = document.getElementById('unmarkLentError');
+            const successDiv = document.getElementById('unmarkLentSuccess');
+            const submitBtn = document.getElementById('confirmUnmarkLentBtn');
+            
+            // Clear previous messages
+            errorDiv.classList.add('d-none');
+            successDiv.classList.add('d-none');
+            
+            // Update button state
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Marking as Returned...';
+            
+            try {
+                const response = await fetch(`/api/game/${gameId}/unmark_as_lent`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to mark game as returned');
+                }
+                
+                const result = await response.json();
+                
+                // Show success message
+                successDiv.textContent = 'Game marked as returned successfully!';
+                successDiv.classList.remove('d-none');
+                
+                // Update button
+                submitBtn.textContent = 'Marked as Returned!';
+                
+                // Close modal after delay and refresh games
+                setTimeout(() => {
+                    const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                    bootstrapModal.hide();
+                    loadAllGames();
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Error marking game as returned:', error);
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove('d-none');
+                
+                // Reset button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Mark as Returned';
+            }
+        });
 
     </script>
 
