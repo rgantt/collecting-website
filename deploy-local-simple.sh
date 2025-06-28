@@ -7,7 +7,7 @@ set -e
 # Configuration
 APP_NAME="collecting-website"
 APP_USER="www-data"
-APP_DIR="/opt/${APP_NAME}"
+APP_DIR="/var/www/${APP_NAME}"
 SERVICE_NAME="${APP_NAME}.service"
 LOG_FILE="/var/log/${APP_NAME}-deploy.log"
 
