@@ -702,6 +702,69 @@ def remove_from_wishlist(game_id):
         return jsonify({"error": "Failed to remove game from wishlist"}), 500
 
 
+@main.route('/api/game/<int:game_id>/remove_from_collection', methods=['DELETE'])
+def remove_from_collection(game_id):
+    """Remove a game from the collection entirely."""
+    try:
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # First get the game info for logging and validation
+            cursor.execute(
+                """SELECT pg.name, pg.console 
+                   FROM physical_games pg 
+                   JOIN purchased_games pur ON pg.id = pur.physical_game 
+                   WHERE pg.id = ?""",
+                (game_id,)
+            )
+            result = cursor.fetchone()
+            
+            if not result:
+                current_app.logger.warning(f"Game {game_id} not found in collection")
+                return jsonify({"error": "Game not found in collection or not owned"}), 404
+            
+            game_name, game_console = result
+            
+            # Remove from all related tables in proper order
+            # 1. Remove from games_for_sale if present
+            cursor.execute(
+                "DELETE FROM games_for_sale WHERE purchased_game_id IN (SELECT id FROM purchased_games WHERE physical_game = ?)",
+                (game_id,)
+            )
+            
+            # 2. Remove from lent_games if present
+            cursor.execute(
+                "DELETE FROM lent_games WHERE purchased_game_id IN (SELECT id FROM purchased_games WHERE physical_game = ?)",
+                (game_id,)
+            )
+            
+            # 3. Remove from purchased_games (this removes the ownership)
+            cursor.execute(
+                "DELETE FROM purchased_games WHERE physical_game = ?",
+                (game_id,)
+            )
+            
+            if cursor.rowcount == 0:
+                current_app.logger.warning(f"No purchased entry found for game {game_id}")
+                return jsonify({"error": "Game not found in collection or not owned"}), 404
+            
+            # Note: We keep the physical_games entry as it might be referenced by wishlist or other users
+            
+            db.commit()
+            current_app.logger.info(f"Successfully removed game {game_id} ({game_name} - {game_console}) from collection")
+            
+            return jsonify({
+                "message": "Game removed from collection successfully",
+                "game_id": game_id,
+                "name": game_name,
+                "console": game_console
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error removing game {game_id} from collection: {str(e)}")
+        return jsonify({"error": "Failed to remove game from collection"}), 500
+
+
 @main.route('/api/game/<int:game_id>/mark_for_sale', methods=['POST'])
 def mark_game_for_sale(game_id):
     """Mark an owned game for sale."""
