@@ -525,7 +525,36 @@
             </div>
         </div>
     </div>
-
+    
+    <!-- Unmark For Sale Confirmation Modal -->
+    <div class="modal fade" id="unmarkForSaleModal" tabindex="-1" aria-labelledby="unmarkForSaleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="unmarkForSaleModalLabel">Unmark Game for Sale</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <p>Are you sure you want to remove <strong><span id="unmarkForSaleGameInfo"></span></strong> from your sale list?</p>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            This will remove the game from your for-sale listings and clear any asking price or sale notes.
+                        </div>
+                    </div>
+                    
+                    <div id="unmarkForSaleError" class="alert alert-danger d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="confirmUnmarkForSaleBtn">
+                        <i class="fas fa-times me-1"></i>Unmark for Sale
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Purchase Modal -->
     <div class="modal fade" id="purchaseModal" tabindex="-1" aria-labelledby="purchaseModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -2670,6 +2699,165 @@
             }
         });
 
+        // Helper function to update game card UI for sale status
+        function updateGameCardForSale(gameId, saleData) {
+            console.log('🚀 Updating game card for sale, gameId:', gameId);
+            
+            // Find the game row and details
+            const gameRow = document.querySelector(`tr.game-row[data-game-id="${gameId}"]`);
+            const gameDetails = document.querySelector(`div.game-details[data-game-id="${gameId}"]`);
+            
+            if (!gameRow || !gameDetails) {
+                console.warn('Game elements not found for ID:', gameId, { gameRow: !!gameRow, gameDetails: !!gameDetails });
+                return;
+            }
+            
+            // Update status icon in the table row (first column)
+            const statusIcon = gameRow.querySelector('.status-col');
+            if (statusIcon) {
+                statusIcon.textContent = '💰';
+            }
+            
+            // Update status text in the details section
+            const statusElements = gameDetails.querySelectorAll('dd');
+            // The status is the second dd element (Console, Status, Condition, ...)
+            if (statusElements && statusElements.length >= 2) {
+                statusElements[1].textContent = 'For Sale';
+            }
+            
+            // Update action buttons - find or create buttons
+            // Find the Actions section specifically
+            const actionsDt = Array.from(gameDetails.querySelectorAll('dt')).find(dt => dt.textContent.trim() === 'Actions');
+            const actionsContainer = actionsDt ? actionsDt.nextElementSibling : null;
+            let markButton = gameDetails.querySelector('.mark-for-sale-btn');
+            let unmarkButton = gameDetails.querySelector('.unmark-for-sale-btn');
+            
+            // Hide mark button if it exists
+            if (markButton) {
+                markButton.style.display = 'none';
+                console.log('✅ Hid mark for sale button');
+            }
+            
+            // Show unmark button if it exists, otherwise create it
+            if (unmarkButton) {
+                unmarkButton.style.display = 'inline-block';
+                console.log('✅ Showed existing unmark for sale button');
+            } else if (actionsContainer) {
+                // Create unmark button dynamically
+                unmarkButton = document.createElement('button');
+                unmarkButton.className = 'btn btn-sm btn-outline-warning unmark-for-sale-btn';
+                unmarkButton.setAttribute('data-game-id', gameId);
+                unmarkButton.setAttribute('data-game-name', saleData.gameName || 'Unknown');
+                unmarkButton.setAttribute('data-game-console', saleData.gameConsole || 'Unknown');
+                unmarkButton.style.cssText = 'font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;';
+                unmarkButton.innerHTML = '🚫 Unmark for Sale';
+                
+                actionsContainer.prepend(unmarkButton);
+                console.log('✅ Created new unmark for sale button');
+            }
+            
+            // Add sale information to the details if not already present
+            // Look for existing sale info section or create one
+            let saleInfoSection = gameDetails.querySelector('.sale-info-section');
+            if (!saleInfoSection && (saleData.asking_price || saleData.notes)) {
+                // Create a new section for sale information
+                const dlElement = gameDetails.querySelector('dl');
+                if (dlElement) {
+                    const saleDiv = document.createElement('div');
+                    saleDiv.className = 'sale-info-section';
+                    saleDiv.innerHTML = `
+                        <dt>Sale Information</dt>
+                        <dd class="sale-info"></dd>
+                    `;
+                    dlElement.appendChild(saleDiv);
+                    saleInfoSection = saleDiv;
+                }
+            }
+            
+            // Update sale information content
+            const saleInfo = saleInfoSection?.querySelector('.sale-info');
+            if (saleInfo) {
+                let saleInfoHTML = '';
+                if (saleData.asking_price) {
+                    saleInfoHTML += `Asking Price: $${saleData.asking_price}<br>`;
+                }
+                if (saleData.notes) {
+                    saleInfoHTML += `Notes: ${saleData.notes}<br>`;
+                }
+                saleInfoHTML += `Date Marked: ${saleData.date_marked_for_sale}`;
+                saleInfo.innerHTML = saleInfoHTML;
+            }
+            
+            console.log('✅ Updated game card UI for sale status:', gameId);
+        }
+        
+        // Helper function to update game card UI when unmarking for sale
+        function updateGameCardUnmarkForSale(gameId) {
+            console.log('🚀 Updating game card for unmark sale, gameId:', gameId);
+            
+            // Find the game row and details
+            const gameRow = document.querySelector(`tr.game-row[data-game-id="${gameId}"]`);
+            const gameDetails = document.querySelector(`div.game-details[data-game-id="${gameId}"]`);
+            
+            if (!gameRow || !gameDetails) {
+                console.warn('Game elements not found for ID:', gameId, { gameRow: !!gameRow, gameDetails: !!gameDetails });
+                return;
+            }
+            
+            // Update status icon in the table row (back to purchased)
+            const statusIcon = gameRow.querySelector('.status-col');
+            if (statusIcon) {
+                statusIcon.textContent = '✓';
+            }
+            
+            // Update status text in the details section
+            const statusElements = gameDetails.querySelectorAll('dd');
+            // The status is the second dd element (Console, Status, Condition, ...)
+            if (statusElements && statusElements.length >= 2) {
+                statusElements[1].textContent = 'Purchased';
+            }
+            
+            // Update action buttons - find or create buttons
+            // Find the Actions section specifically
+            const actionsDt = Array.from(gameDetails.querySelectorAll('dt')).find(dt => dt.textContent.trim() === 'Actions');
+            const actionsContainer = actionsDt ? actionsDt.nextElementSibling : null;
+            let markButton = gameDetails.querySelector('.mark-for-sale-btn');
+            let unmarkButton = gameDetails.querySelector('.unmark-for-sale-btn');
+            
+            // Hide unmark button if it exists
+            if (unmarkButton) {
+                unmarkButton.style.display = 'none';
+                console.log('✅ Hid unmark for sale button');
+            }
+            
+            // Show mark button if it exists, otherwise create it
+            if (markButton) {
+                markButton.style.display = 'inline-block';
+                console.log('✅ Showed existing mark for sale button');
+            } else if (actionsContainer) {
+                // Create mark button dynamically
+                markButton = document.createElement('button');
+                markButton.className = 'btn btn-sm btn-success mark-for-sale-btn';
+                markButton.setAttribute('data-game-id', gameId);
+                markButton.setAttribute('data-game-name', 'Unknown'); // We don't have this info in unmark
+                markButton.setAttribute('data-game-console', 'Unknown');
+                markButton.style.cssText = 'font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;';
+                markButton.innerHTML = '💰 Mark for Sale';
+                
+                actionsContainer.prepend(markButton);
+                console.log('✅ Created new mark for sale button');
+            }
+            
+            // Remove sale information section if it exists
+            const saleInfoSection = gameDetails.querySelector('.sale-info-section');
+            if (saleInfoSection) {
+                saleInfoSection.remove();
+                console.log('✅ Removed sale info section');
+            }
+            
+            console.log('✅ Updated game card UI for unmark sale status:', gameId);
+        }
+
         // Mark for Sale functionality
         function openMarkForSaleModal(gameId, gameName, gameConsole) {
             const modal = document.getElementById('markForSaleModal');
@@ -2709,10 +2897,12 @@
             }
         });
 
-        // Handle mark for sale confirmation
+        // Handle mark for sale confirmation (with optimistic updates)
         document.getElementById('confirmMarkForSaleBtn').addEventListener('click', async () => {
             const modal = document.getElementById('markForSaleModal');
             const gameId = modal.dataset.gameId;
+            const gameName = modal.dataset.gameName;
+            const gameConsole = modal.dataset.gameConsole;
             const askingPrice = document.getElementById('askingPriceInput').value;
             const saleNotes = document.getElementById('saleNotesInput').value;
             const errorDiv = document.getElementById('markForSaleError');
@@ -2727,7 +2917,45 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Marking for Sale...';
             
-            try {
+            // Prepare optimistic update data
+            const optimisticData = {
+                asking_price: askingPrice ? parseFloat(askingPrice) : null,
+                notes: saleNotes.trim() || null,
+                sale_status: 'for_sale',
+                date_marked_for_sale: new Date().toISOString().split('T')[0]
+            };
+            
+            // UI update function for optimistic changes
+            const applyOptimisticUI = (game) => {
+                console.log('🚀 Applying optimistic mark for sale UI for game:', gameId);
+                
+                // Update game state
+                const currentGame = window.gameStateManager.getGame(gameId);
+                if (currentGame) {
+                    const updatedGame = {
+                        ...currentGame,
+                        ...optimisticData
+                    };
+                    window.gameStateManager.updateGame(updatedGame);
+                }
+                
+                // Update UI elements immediately
+                updateGameCardForSale(gameId, optimisticData);
+                
+                // Show success in modal
+                successDiv.textContent = 'Game marked for sale successfully!';
+                successDiv.classList.remove('d-none');
+                submitBtn.textContent = 'Marked for Sale!';
+                
+                // Close modal after short delay
+                setTimeout(() => {
+                    const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                    bootstrapModal.hide();
+                }, 1500);
+            };
+            
+            // API function
+            const markForSaleAPI = async () => {
                 const requestBody = {};
                 if (askingPrice) {
                     requestBody.asking_price = parseFloat(askingPrice);
@@ -2749,34 +2977,58 @@
                     throw new Error(errorData.error || 'Failed to mark game for sale');
                 }
                 
-                const result = await response.json();
-                
-                // Show success message
-                successDiv.textContent = 'Game marked for sale successfully!';
-                successDiv.classList.remove('d-none');
-                
-                // Update button
-                submitBtn.textContent = 'Marked for Sale!';
-                
-                // Close modal after delay and refresh games
-                setTimeout(() => {
-                    const bootstrapModal = bootstrap.Modal.getInstance(modal);
-                    bootstrapModal.hide();
-                    loadAllGames();
-                }, 1500);
-                
-            } catch (error) {
-                console.error('Error marking game for sale:', error);
+                return await response.json();
+            };
+            
+            // Error handling function
+            const handleError = (error) => {
+                console.error('❌ Mark for sale failed:', error);
                 errorDiv.textContent = error.message;
                 errorDiv.classList.remove('d-none');
+                successDiv.classList.add('d-none');
                 
-                // Reset button
+                // Reset button state
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Mark for Sale';
+            };
+            
+            // Apply simplified optimistic update
+            try {
+                console.log('🚀 Applying optimistic mark for sale...');
+                
+                // 1. Apply immediate UI changes
+                applyOptimisticUI();
+                
+                // 2. Call API in background
+                const result = await markForSaleAPI();
+                
+                // 3. Update state manager on success
+                const currentGame = window.gameStateManager.getGame(gameId);
+                if (currentGame) {
+                    const updatedGame = {
+                        ...currentGame,
+                        is_for_sale: true,
+                        asking_price: askingPrice,
+                        sale_notes: saleNotes,
+                        date_marked_for_sale: new Date().toISOString().split('T')[0]
+                    };
+                    window.gameStateManager.updateGame(updatedGame);
+                }
+                
+                console.log('✅ Mark for sale completed successfully');
+                
+            } catch (error) {
+                console.error('❌ Mark for sale failed, rolling back...', error);
+                
+                // Rollback UI changes
+                updateGameCardUnmarkForSale(gameId);
+                
+                // Handle error
+                handleError(error);
             }
         });
 
-        // Set up event delegation for unmark for sale buttons
+        // Set up event delegation for unmark for sale buttons (with optimistic updates)
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('unmark-for-sale-btn')) {
                 e.preventDefault();
@@ -2784,15 +3036,93 @@
                 const gameName = e.target.dataset.gameName;
                 const gameConsole = e.target.dataset.gameConsole;
                 
-                if (confirm(`Are you sure you want to unmark "${gameName} (${gameConsole})" for sale?`)) {
-                    unmarkForSale(gameId);
-                }
+                // Show unmark for sale modal
+                const modal = document.getElementById('unmarkForSaleModal');
+                const gameInfo = document.getElementById('unmarkForSaleGameInfo');
+                const errorDiv = document.getElementById('unmarkForSaleError');
+                
+                // Set game info
+                gameInfo.textContent = `${gameName} (${gameConsole})`;
+                
+                // Clear any previous errors
+                errorDiv.classList.add('d-none');
+                
+                // Store game info in modal for confirmation
+                modal.dataset.gameId = gameId;
+                modal.dataset.gameName = gameName;
+                modal.dataset.gameConsole = gameConsole;
+                
+                // Show modal
+                const bootstrapModal = new bootstrap.Modal(modal);
+                bootstrapModal.show();
+            }
+        });
+        
+        // Handle unmark for sale modal confirmation
+        document.getElementById('confirmUnmarkForSaleBtn').addEventListener('click', async () => {
+            const modal = document.getElementById('unmarkForSaleModal');
+            const gameId = modal.dataset.gameId;
+            const gameName = modal.dataset.gameName;
+            const gameConsole = modal.dataset.gameConsole;
+            const errorDiv = document.getElementById('unmarkForSaleError');
+            const submitBtn = document.getElementById('confirmUnmarkForSaleBtn');
+            
+            // Clear any errors
+            errorDiv.classList.add('d-none');
+            
+            // Disable button and show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Unmarking...';
+            
+            try {
+                // Call the unmark function
+                await unmarkForSale(gameId, gameName, gameConsole);
+                
+                // Close modal after short delay
+                setTimeout(() => {
+                    const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                    bootstrapModal.hide();
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Unmark for sale error:', error);
+                errorDiv.textContent = error.message || 'An error occurred while unmarking the game for sale.';
+                errorDiv.classList.remove('d-none');
+            } finally {
+                // Re-enable button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-times me-1"></i>Unmark for Sale';
             }
         });
 
-        // Unmark for sale function
-        async function unmarkForSale(gameId) {
-            try {
+        // Unmark for sale function (with optimistic updates)
+        async function unmarkForSale(gameId, gameName, gameConsole) {
+            // UI update function for optimistic changes
+            const applyOptimisticUI = (game) => {
+                console.log('🚀 Applying optimistic unmark for sale UI for game:', gameId);
+                
+                // Update game state
+                const currentGame = window.gameStateManager.getGame(gameId);
+                if (currentGame) {
+                    const updatedGame = {
+                        ...currentGame,
+                        sale_status: null,
+                        asking_price: null,
+                        notes: null,
+                        date_marked_for_sale: null
+                    };
+                    window.gameStateManager.updateGame(updatedGame);
+                }
+                
+                // Update UI elements immediately
+                updateGameCardUnmarkForSale(gameId);
+                
+                // Show success toast
+                window.errorHandler.showSuccessToast(`${gameName} unmarked for sale! ✅`);
+            };
+            
+            // API function
+            const unmarkForSaleAPI = async () => {
                 const response = await fetch(`/api/game/${gameId}/unmark_for_sale`, {
                     method: 'DELETE'
                 });
@@ -2802,14 +3132,53 @@
                     throw new Error(errorData.error || 'Failed to unmark game for sale');
                 }
                 
-                console.log('Game unmarked for sale successfully');
+                return await response.json();
+            };
+            
+            // Error handling function
+            const handleError = (error) => {
+                console.error('❌ Unmark for sale failed:', error);
+                window.errorHandler.showErrorToast(`Failed to unmark ${gameName} for sale: ${error.message}`);
+            };
+            
+            // Apply simplified optimistic update
+            try {
+                console.log('🚀 Applying optimistic unmark for sale...');
                 
-                // Refresh games list
-                loadAllGames();
+                // 1. Apply immediate UI changes
+                applyOptimisticUI();
+                
+                // 2. Call API in background
+                const result = await unmarkForSaleAPI();
+                
+                // 3. Update state manager on success
+                const currentGame = window.gameStateManager.getGame(gameId);
+                if (currentGame) {
+                    const updatedGame = {
+                        ...currentGame,
+                        is_for_sale: false,
+                        asking_price: null,
+                        sale_notes: null,
+                        date_marked_for_sale: null
+                    };
+                    window.gameStateManager.updateGame(updatedGame);
+                }
+                
+                console.log('✅ Unmark for sale completed successfully');
                 
             } catch (error) {
-                console.error('Error unmarking game for sale:', error);
-                alert('Failed to unmark game for sale: ' + error.message);
+                console.error('❌ Unmark for sale failed, rolling back...', error);
+                
+                // Rollback UI changes - mark back for sale
+                const saleData = {
+                    asking_price: currentGame?.asking_price || 0,
+                    notes: currentGame?.sale_notes || '',
+                    date_marked_for_sale: currentGame?.date_marked_for_sale || new Date().toISOString().split('T')[0]
+                };
+                updateGameCardForSale(gameId, saleData);
+                
+                // Handle error
+                handleError(error);
             }
         }
 
