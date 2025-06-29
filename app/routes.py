@@ -711,53 +711,49 @@ def remove_from_collection(game_id):
         with get_db() as db:
             cursor = db.cursor()
             
-            # First check if the game exists in physical_games
-            cursor.execute("SELECT name, console FROM physical_games WHERE id = ?", (game_id,))
-            physical_game = cursor.fetchone()
+            # First get the purchased_game_id and game info for logging (following same pattern as unmark_for_sale)
+            cursor.execute("""
+                SELECT pur.id, pg.name, pg.console 
+                FROM physical_games pg
+                JOIN purchased_games pur ON pg.id = pur.physical_game
+                WHERE pg.id = ?
+            """, (game_id,))
             
-            if not physical_game:
-                current_app.logger.warning(f"Physical game {game_id} not found")
-                return jsonify({"error": "Game not found"}), 404
-                
-            game_name, game_console = physical_game
-            current_app.logger.info(f"Found physical game: {game_name} ({game_console})")
+            result = cursor.fetchone()
             
-            # Check if the game is owned (exists in purchased_games)
-            cursor.execute("SELECT id FROM purchased_games WHERE physical_game = ?", (game_id,))
-            purchased_entries = cursor.fetchall()
-            
-            if not purchased_entries:
-                current_app.logger.warning(f"Game {game_id} ({game_name}) not found in purchased_games - not owned")
+            if not result:
+                current_app.logger.warning(f"Game {game_id} not found in collection or not owned")
                 return jsonify({"error": "Game not found in collection or not owned"}), 404
             
-            current_app.logger.info(f"Found {len(purchased_entries)} purchased entries for game {game_id}")
+            purchased_game_id, game_name, game_console = result
+            current_app.logger.info(f"Found owned game: {game_name} ({game_console}) with purchased_game_id {purchased_game_id}")
             
             # Remove from all related tables in proper order
-            # 1. Remove from games_for_sale if present
+            # 1. Remove from games_for_sale if present (uses purchased_game_id)
             cursor.execute(
-                "DELETE FROM games_for_sale WHERE purchased_game_id IN (SELECT id FROM purchased_games WHERE physical_game = ?)",
-                (game_id,)
+                "DELETE FROM games_for_sale WHERE purchased_game_id = ?",
+                (purchased_game_id,)
             )
             sale_removals = cursor.rowcount
             current_app.logger.info(f"Removed {sale_removals} entries from games_for_sale")
             
-            # 2. Remove from lent_games if present
+            # 2. Remove from lent_games if present (uses purchased_game)
             cursor.execute(
-                "DELETE FROM lent_games WHERE purchased_game_id IN (SELECT id FROM purchased_games WHERE physical_game = ?)",
-                (game_id,)
+                "DELETE FROM lent_games WHERE purchased_game = ?",
+                (purchased_game_id,)
             )
             lent_removals = cursor.rowcount
             current_app.logger.info(f"Removed {lent_removals} entries from lent_games")
             
             # 3. Remove from purchased_games (this removes the ownership)
             cursor.execute(
-                "DELETE FROM purchased_games WHERE physical_game = ?",
-                (game_id,)
+                "DELETE FROM purchased_games WHERE id = ?",
+                (purchased_game_id,)
             )
             purchased_removals = cursor.rowcount
             
             if purchased_removals == 0:
-                current_app.logger.error(f"Failed to remove entries from purchased_games for game {game_id}")
+                current_app.logger.error(f"Failed to remove entries from purchased_games for purchased_game_id {purchased_game_id}")
                 return jsonify({"error": "Failed to remove game from collection"}), 500
             
             current_app.logger.info(f"Removed {purchased_removals} entries from purchased_games")
