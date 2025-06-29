@@ -767,6 +767,7 @@
             // Initialize arrays
             let allGames = [];
             let filteredGames = [];
+            let collectionTotals = null;
             const ITEMS_PER_PAGE = 30;
 
             // Show loading state
@@ -786,9 +787,12 @@
                     if (!response.ok) {
                         throw new Error(`API error: ${response.status}`);
                     }
-                    allGames = await response.json();
+                    const data = await response.json();
+                    allGames = data.games || data; // Handle both old and new format
+                    collectionTotals = data.totals || null;
                     filteredGames = [...allGames];
                     console.log('Loaded games from API:', allGames.length);
+                    console.log('Collection totals:', collectionTotals);
                     renderGames(allGames, true, 1);
                 } catch (error) {
                     console.error('Error loading games:', error);
@@ -923,10 +927,30 @@
                 const endIndex = Math.min(startIndex + itemsPerPage, games.length);
                 const pageGames = games.slice(startIndex, endIndex);
                 
-                // Update result count
+                // Calculate totals for current result set
+                function calculateTotals(gamesList) {
+                    let totalAcquisition = 0;
+                    let totalCurrent = 0;
+                    
+                    gamesList.forEach(game => {
+                        if (game.purchase_price) {
+                            totalAcquisition += game.purchase_price;
+                        }
+                        if (game.current_price) {
+                            totalCurrent += game.current_price;
+                        }
+                    });
+                    
+                    return { totalAcquisition, totalCurrent };
+                }
+                
+                const totals = calculateTotals(games);
+                
+                // Update result count with totals
                 const resultCount = document.getElementById('resultCount');
                 if (resultCount) {
-                    resultCount.textContent = `Showing ${startIndex + 1}-${endIndex} of ${games.length} results`;
+                    const totalsText = `Total Acquired: ${formatCurrency(totals.totalAcquisition)} | Current Value: ${formatCurrency(totals.totalCurrent)}`;
+                    resultCount.innerHTML = `Showing ${startIndex + 1}-${endIndex} of ${games.length} results<br><small class="text-muted">${totalsText}</small>`;
                 }
 
                 if (!games || games.length === 0) {
@@ -1376,9 +1400,24 @@
             const applyFilters = () => {
                 const searchTerm = document.getElementById('searchInput').value;
                 const filtered = filterGames(allGames, searchTerm);
+                
+                // Calculate totals for filtered results
+                let totalAcquisition = 0;
+                let totalCurrent = 0;
+                
+                filtered.forEach(game => {
+                    if (game.purchase_price) {
+                        totalAcquisition += game.purchase_price;
+                    }
+                    if (game.current_price) {
+                        totalCurrent += game.current_price;
+                    }
+                });
+                
                 const resultCount = document.getElementById('resultCount');
                 if (resultCount) {
-                    resultCount.textContent = `${filtered.length} games found`;
+                    const totalsText = `Total Acquired: ${formatCurrency(totalAcquisition)} | Current Value: ${formatCurrency(totalCurrent)}`;
+                    resultCount.innerHTML = `${filtered.length} games found<br><small class="text-muted">${totalsText}</small>`;
                 }
                 renderGames(filtered, false, 1);
             };

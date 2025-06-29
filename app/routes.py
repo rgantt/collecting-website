@@ -237,7 +237,24 @@ def get_all_collection_games():
     """Get all games for client-side operations."""
     # Use existing function but get all games without pagination
     collection_games = get_collection_games(page=1, per_page=10000)  # Large number to get all games
-    return jsonify(collection_games)
+    
+    # Calculate totals across all games
+    total_acquisition_price = 0
+    total_current_price = 0
+    
+    for game in collection_games:
+        if game['purchase_price']:
+            total_acquisition_price += game['purchase_price']
+        if game['current_price']:
+            total_current_price += game['current_price']
+    
+    return jsonify({
+        'games': collection_games,
+        'totals': {
+            'total_acquisition_price': total_acquisition_price,
+            'total_current_price': total_current_price
+        }
+    })
 
 @main.route('/api/wishlist/add', methods=['POST'])
 def add_to_wishlist():
