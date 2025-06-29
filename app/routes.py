@@ -82,7 +82,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                     )
                     AND lp.rn = 1
                 LEFT JOIN lent_games l ON pg.id = l.purchased_game
-                LEFT JOIN games_for_sale gfs ON p.id = gfs.physical_game_id
+                LEFT JOIN games_for_sale gfs ON pg.id = gfs.purchased_game_id
                 WHERE pg.physical_game IS NOT NULL OR w.physical_game IS NOT NULL
             )
             SELECT 
@@ -722,7 +722,7 @@ def mark_game_for_sale(game_id):
             
             # First, verify the game exists and is owned (has a purchase record)
             cursor.execute("""
-                SELECT pg.name, pg.console, pur.acquisition_date, pur.source, pur.price
+                SELECT pg.name, pg.console, pur.id, pur.acquisition_date, pur.source, pur.price
                 FROM physical_games pg
                 JOIN purchased_games pur ON pg.id = pur.physical_game
                 WHERE pg.id = ?
@@ -732,12 +732,12 @@ def mark_game_for_sale(game_id):
             if not game_info:
                 return jsonify({"error": "Game not found or not owned"}), 404
             
-            name, console, orig_date, orig_source, orig_price = game_info
+            name, console, purchased_game_id, orig_date, orig_source, orig_price = game_info
             
             # Check if already marked for sale
             cursor.execute(
-                "SELECT id FROM games_for_sale WHERE physical_game_id = ?",
-                (game_id,)
+                "SELECT id FROM games_for_sale WHERE purchased_game_id = ?",
+                (purchased_game_id,)
             )
             if cursor.fetchone():
                 return jsonify({"error": "Game is already marked for sale"}), 400
@@ -745,10 +745,10 @@ def mark_game_for_sale(game_id):
             # Insert into games_for_sale with copied purchase information
             cursor.execute("""
                 INSERT INTO games_for_sale 
-                (physical_game_id, asking_price, notes, 
+                (purchased_game_id, asking_price, notes, 
                  original_acquisition_date, original_source, original_purchase_price)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (game_id, asking_price, notes, orig_date, orig_source, orig_price))
+            """, (purchased_game_id, asking_price, notes, orig_date, orig_source, orig_price))
             
             db.commit()
             current_app.logger.info(f"Successfully marked game {game_id} ({name} - {console}) for sale")
@@ -774,24 +774,32 @@ def unmark_game_for_sale(game_id):
         with get_db() as db:
             cursor = db.cursor()
             
-            # First get the game info for logging
+            # First get the purchased_game_id and game info for logging
             cursor.execute("""
-                SELECT pg.name, pg.console 
-                FROM games_for_sale gfs 
-                JOIN physical_games pg ON gfs.physical_game_id = pg.id 
-                WHERE gfs.physical_game_id = ?
+                SELECT pur.id, pg.name, pg.console 
+                FROM physical_games pg
+                JOIN purchased_games pur ON pg.id = pur.physical_game
+                WHERE pg.id = ?
             """, (game_id,))
             
             result = cursor.fetchone()
             if not result:
-                return jsonify({"error": "Game not found in for sale list"}), 404
+                return jsonify({"error": "Game not found or not owned"}), 404
             
-            game_name, game_console = result
+            purchased_game_id, game_name, game_console = result
+            
+            # Check if the game is actually marked for sale
+            cursor.execute(
+                "SELECT id FROM games_for_sale WHERE purchased_game_id = ?",
+                (purchased_game_id,)
+            )
+            if not cursor.fetchone():
+                return jsonify({"error": "Game not found in for sale list"}), 404
             
             # Remove from games_for_sale
             cursor.execute(
-                "DELETE FROM games_for_sale WHERE physical_game_id = ?",
-                (game_id,)
+                "DELETE FROM games_for_sale WHERE purchased_game_id = ?",
+                (purchased_game_id,)
             )
             
             if cursor.rowcount == 0:
