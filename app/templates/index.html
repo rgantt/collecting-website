@@ -282,6 +282,61 @@
             height: 100%;
             width: 100%;
         }
+        
+        /* Console dropdown wrapper */
+        .console-dropdown-wrapper {
+            position: relative;
+        }
+        
+        /* Console dropdown toggle button */
+        .console-dropdown-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            text-align: left;
+            border: 0;
+            cursor: pointer;
+            background-image: none !important;
+            padding-right: 0.75rem;
+        }
+        
+        .console-dropdown-toggle:focus {
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        
+        .console-dropdown-arrow {
+            transition: transform 0.2s;
+        }
+        
+        .console-dropdown-toggle[aria-expanded="true"] .console-dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        
+        /* Console checkbox container styling */
+        .console-checkbox-container {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            background-color: white;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            margin-top: 0.125rem;
+        }
+        
+        .console-checkbox-container .form-check {
+            margin-bottom: 0.25rem;
+        }
+        
+        .console-checkbox-container .form-check:last-child {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
@@ -308,9 +363,20 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label">Console</label>
-                            <select id="consoleFilter" class="form-select">
-                                <option value="">All Consoles</option>
-                            </select>
+                            <div class="console-dropdown-wrapper">
+                                <button type="button" class="form-select console-dropdown-toggle" id="consoleDropdownToggle">
+                                    <span class="console-dropdown-text">All Consoles</span>
+                                    <span class="console-dropdown-arrow">▼</span>
+                                </button>
+                                <div id="consoleFilter" class="console-checkbox-container" style="display: none;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="consoleAll" checked>
+                                        <label class="form-check-label" for="consoleAll">
+                                            All Consoles
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Status</label>
@@ -874,7 +940,20 @@
             
             // Filter games
             function filterGames(games, searchTerm) {
-                const consoleFilter = document.getElementById('consoleFilter').value.toLowerCase();
+                // Get selected console filters
+                const allConsolesChecked = document.getElementById('consoleAll').checked;
+                const selectedConsoles = [];
+                
+                if (!allConsolesChecked) {
+                    // Get all checked individual console checkboxes
+                    const consoleCheckboxes = document.querySelectorAll('#consoleFilter input[type="checkbox"]:not(#consoleAll)');
+                    consoleCheckboxes.forEach(checkbox => {
+                        if (checkbox.checked) {
+                            selectedConsoles.push(checkbox.value);
+                        }
+                    });
+                }
+                
                 const statusFilter = document.getElementById('statusFilter').value;
                 const conditionFilter = document.getElementById('conditionFilter').value.toLowerCase();
                 
@@ -883,8 +962,9 @@
                         game.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         game.console.toLowerCase().includes(searchTerm.toLowerCase());
                     
-                    const matchesConsole = !consoleFilter || 
-                        game.console.toLowerCase() === consoleFilter;
+                    // Console filter: show all if "All Consoles" is checked, or if game's console matches any selected console
+                    const matchesConsole = allConsolesChecked || selectedConsoles.length === 0 || 
+                        selectedConsoles.includes(game.console.toLowerCase());
                     
                     const matchesStatus = !statusFilter || 
                         (statusFilter === 'owned' && !game.is_wanted && !game.is_lent && !game.is_for_sale) ||
@@ -1370,12 +1450,119 @@
                 const consoles = [...new Set(games.map(game => game.console))].sort();
                 const consoleFilter = document.getElementById('consoleFilter');
                 
-                consoles.forEach(consoleName => {
-                    const option = document.createElement('option');
-                    option.value = consoleName.toLowerCase();
-                    option.textContent = consoleName;
-                    consoleFilter.appendChild(option);
+                // Clear existing checkboxes except "All Consoles"
+                const allConsoleCheckbox = document.getElementById('consoleAll');
+                consoleFilter.innerHTML = '';
+                consoleFilter.appendChild(allConsoleCheckbox.parentElement);
+                
+                // Add checkbox for each console
+                consoles.forEach((consoleName, index) => {
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.className = 'form-check';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.className = 'form-check-input';
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `console_${index}`;
+                    checkbox.value = consoleName.toLowerCase();
+                    
+                    const label = document.createElement('label');
+                    label.className = 'form-check-label';
+                    label.setAttribute('for', `console_${index}`);
+                    label.textContent = consoleName;
+                    
+                    checkboxDiv.appendChild(checkbox);
+                    checkboxDiv.appendChild(label);
+                    consoleFilter.appendChild(checkboxDiv);
+                    
+                    // Add event listener for individual console checkboxes
+                    checkbox.addEventListener('change', handleConsoleCheckboxChange);
                 });
+                
+                // Add event listener for "All Consoles" checkbox
+                allConsoleCheckbox.addEventListener('change', handleAllConsolesCheckbox);
+                
+                // Setup dropdown toggle functionality
+                setupConsoleDropdown();
+            }
+            
+            // Setup console dropdown functionality
+            function setupConsoleDropdown() {
+                const dropdownToggle = document.getElementById('consoleDropdownToggle');
+                const dropdownContainer = document.getElementById('consoleFilter');
+                
+                // Toggle dropdown visibility
+                dropdownToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const isOpen = dropdownContainer.style.display === 'block';
+                    dropdownContainer.style.display = isOpen ? 'none' : 'block';
+                    dropdownToggle.setAttribute('aria-expanded', !isOpen);
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!dropdownToggle.contains(e.target) && !dropdownContainer.contains(e.target)) {
+                        dropdownContainer.style.display = 'none';
+                        dropdownToggle.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+            
+            // Update dropdown display text based on selections
+            function updateConsoleDropdownText() {
+                const allCheckbox = document.getElementById('consoleAll');
+                const consoleCheckboxes = document.querySelectorAll('#consoleFilter input[type="checkbox"]:not(#consoleAll)');
+                const dropdownText = document.querySelector('.console-dropdown-text');
+                
+                if (allCheckbox.checked) {
+                    dropdownText.textContent = 'All Consoles';
+                } else {
+                    const checkedConsoles = Array.from(consoleCheckboxes)
+                        .filter(checkbox => checkbox.checked)
+                        .map(checkbox => checkbox.nextElementSibling.textContent);
+                    
+                    if (checkedConsoles.length === 0) {
+                        dropdownText.textContent = 'All Consoles';
+                    } else if (checkedConsoles.length === 1) {
+                        dropdownText.textContent = checkedConsoles[0];
+                    } else {
+                        dropdownText.textContent = `${checkedConsoles.length} consoles selected`;
+                    }
+                }
+            }
+            
+            // Handle "All Consoles" checkbox changes
+            function handleAllConsolesCheckbox() {
+                const allCheckbox = document.getElementById('consoleAll');
+                const consoleCheckboxes = document.querySelectorAll('#consoleFilter input[type="checkbox"]:not(#consoleAll)');
+                
+                if (allCheckbox.checked) {
+                    // Uncheck all individual console checkboxes
+                    consoleCheckboxes.forEach(checkbox => {
+                        checkbox.checked = false;
+                    });
+                }
+                
+                updateConsoleDropdownText();
+                applyFilters();
+            }
+            
+            // Handle individual console checkbox changes
+            function handleConsoleCheckboxChange() {
+                const allCheckbox = document.getElementById('consoleAll');
+                const consoleCheckboxes = document.querySelectorAll('#consoleFilter input[type="checkbox"]:not(#consoleAll)');
+                const anyChecked = Array.from(consoleCheckboxes).some(checkbox => checkbox.checked);
+                
+                if (anyChecked) {
+                    // If any individual console is checked, uncheck "All Consoles"
+                    allCheckbox.checked = false;
+                } else {
+                    // If no individual consoles are checked, check "All Consoles"
+                    allCheckbox.checked = true;
+                }
+                
+                updateConsoleDropdownText();
+                applyFilters();
             }
 
             // Initialize
@@ -1422,7 +1609,6 @@
                 renderGames(filtered, false, 1);
             };
             
-            document.getElementById('consoleFilter').addEventListener('change', applyFilters);
             document.getElementById('statusFilter').addEventListener('change', applyFilters);
             document.getElementById('conditionFilter').addEventListener('change', applyFilters);
             
