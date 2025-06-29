@@ -52,6 +52,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
             games_with_prices AS (
                 SELECT 
                     p.id as id,
+                    pg.id as purchased_game_id,
                     p.name as name,
                     p.console as console,
                     COALESCE(w.condition, pg.condition) as condition,
@@ -86,7 +87,7 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
                 WHERE pg.physical_game IS NOT NULL OR w.physical_game IS NOT NULL
             )
             SELECT 
-                id, name, console, condition, source_name, 
+                id, purchased_game_id, name, console, condition, source_name, 
                 purchase_price, current_price, date, is_wanted, is_lent,
                 lent_date, lent_to, note, is_for_sale, asking_price, sale_notes, sale_date_marked
             FROM games_with_prices
@@ -101,9 +102,10 @@ def get_collection_games(page=1, per_page=30, sort_by='acquisition_date', sort_o
         
         collection_games = []
         for row in cursor.fetchall():
-            id, name, console, condition, source, purchase_price, current_price, date, is_wanted, is_lent, lent_date, lent_to, note, is_for_sale, asking_price, sale_notes, sale_date_marked = row
+            id, purchased_game_id, name, console, condition, source, purchase_price, current_price, date, is_wanted, is_lent, lent_date, lent_to, note, is_for_sale, asking_price, sale_notes, sale_date_marked = row
             collection_games.append({
                 'id': id,
+                'purchased_game_id': purchased_game_id,
                 'name': name,
                 'console': console,
                 'condition': condition,
@@ -702,30 +704,30 @@ def remove_from_wishlist(game_id):
         return jsonify({"error": "Failed to remove game from wishlist"}), 500
 
 
-@main.route('/api/game/<int:game_id>/remove_from_collection', methods=['DELETE'])
-def remove_from_collection(game_id):
-    """Remove a game from the collection entirely."""
+@main.route('/api/purchased_game/<int:purchased_game_id>/remove_from_collection', methods=['DELETE'])
+def remove_from_collection(purchased_game_id):
+    """Remove a specific purchased game from the collection entirely."""
     try:
-        current_app.logger.info(f"Attempting to remove game {game_id} from collection")
+        current_app.logger.info(f"Attempting to remove purchased_game_id {purchased_game_id} from collection")
         
         with get_db() as db:
             cursor = db.cursor()
             
-            # First get the purchased_game_id and game info for logging (following same pattern as unmark_for_sale)
+            # First get the game info for the specific purchased game
             cursor.execute("""
-                SELECT pur.id, pg.name, pg.console 
-                FROM physical_games pg
-                JOIN purchased_games pur ON pg.id = pur.physical_game
-                WHERE pg.id = ?
-            """, (game_id,))
+                SELECT pg.name, pg.console, pur.id
+                FROM purchased_games pur
+                JOIN physical_games pg ON pur.physical_game = pg.id
+                WHERE pur.id = ?
+            """, (purchased_game_id,))
             
             result = cursor.fetchone()
             
             if not result:
-                current_app.logger.warning(f"Game {game_id} not found in collection or not owned")
+                current_app.logger.warning(f"Purchased game {purchased_game_id} not found in collection or not owned")
                 return jsonify({"error": "Game not found in collection or not owned"}), 404
             
-            purchased_game_id, game_name, game_console = result
+            game_name, game_console, _ = result
             current_app.logger.info(f"Found owned game: {game_name} ({game_console}) with purchased_game_id {purchased_game_id}")
             
             # Remove from all related tables in proper order
@@ -761,17 +763,17 @@ def remove_from_collection(game_id):
             # Note: We keep the physical_games entry as it might be referenced by wishlist or other users
             
             db.commit()
-            current_app.logger.info(f"Successfully removed game {game_id} ({game_name} - {game_console}) from collection")
+            current_app.logger.info(f"Successfully removed purchased_game_id {purchased_game_id} ({game_name} - {game_console}) from collection")
             
             return jsonify({
                 "message": "Game removed from collection successfully",
-                "game_id": game_id,
+                "purchased_game_id": purchased_game_id,
                 "name": game_name,
                 "console": game_console
             })
             
     except Exception as e:
-        current_app.logger.error(f"Error removing game {game_id} from collection: {str(e)}")
+        current_app.logger.error(f"Error removing purchased_game_id {purchased_game_id} from collection: {str(e)}")
         import traceback
         current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": f"Failed to remove game from collection: {str(e)}"}), 500

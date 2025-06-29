@@ -1163,6 +1163,7 @@
                                                 `}
                                                 <button class="btn btn-sm btn-outline-danger remove-from-collection-btn" 
                                                         data-game-id="${game.id}" 
+                                                        data-purchased-game-id="${game.purchased_game_id}"
                                                         data-game-name="${game.name}"
                                                         data-game-console="${game.console}"
                                                         style="font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;">
@@ -2689,7 +2690,7 @@
         });
 
         // Remove from Collection functionality
-        function openRemoveFromCollectionModal(gameId, gameName, gameConsole) {
+        function openRemoveFromCollectionModal(gameId, purchasedGameId, gameName, gameConsole) {
             const modal = document.getElementById('removeFromCollectionModal');
             const gameInfo = document.getElementById('removeGameInfo');
             const errorDiv = document.getElementById('removeCollectionError');
@@ -2697,6 +2698,7 @@
             
             // Set modal data
             modal.dataset.gameId = gameId;
+            modal.dataset.purchasedGameId = purchasedGameId;
             modal.dataset.gameName = gameName;
             modal.dataset.gameConsole = gameConsole;
             
@@ -2722,10 +2724,11 @@
             if (e.target.classList.contains('remove-from-collection-btn')) {
                 e.preventDefault();
                 const gameId = e.target.dataset.gameId;
+                const purchasedGameId = e.target.dataset.purchasedGameId;
                 const gameName = e.target.dataset.gameName;
                 const gameConsole = e.target.dataset.gameConsole;
                 
-                openRemoveFromCollectionModal(gameId, gameName, gameConsole);
+                openRemoveFromCollectionModal(gameId, purchasedGameId, gameName, gameConsole);
             }
         });
 
@@ -2733,6 +2736,7 @@
         document.getElementById('confirmRemoveFromCollectionBtn').addEventListener('click', async () => {
             const modal = document.getElementById('removeFromCollectionModal');
             const gameId = modal.dataset.gameId;
+            const purchasedGameId = modal.dataset.purchasedGameId;
             const gameName = modal.dataset.gameName;
             const gameConsole = modal.dataset.gameConsole;
             
@@ -2749,7 +2753,7 @@
             submitBtn.textContent = 'Removing from Collection...';
             
             try {
-                const response = await fetch(`/api/game/${gameId}/remove_from_collection`, {
+                const response = await fetch(`/api/purchased_game/${purchasedGameId}/remove_from_collection`, {
                     method: 'DELETE'
                 });
                 
