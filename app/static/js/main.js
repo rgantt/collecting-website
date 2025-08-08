@@ -1507,7 +1507,23 @@
                 return currentGameData;
             }
             
-            console.log('🔄 Applying differential update with changes:', changes);
+            console.log('🔄 Detected changes:', changes);
+            
+            // Check for critical conflicts that need user resolution
+            if (changes._metadata?.hasCriticalConflict) {
+                console.log('⚠️ Critical conflict detected, showing resolution modal');
+                showConflictModal(
+                    gameId, 
+                    currentGameData.name, 
+                    currentGameData.console, 
+                    changes, 
+                    currentGameData, 
+                    freshGameData
+                );
+                return currentGameData; // Don't auto-update when conflicts exist
+            }
+            
+            console.log('🔄 Applying automatic differential update with changes:', changes);
             
             // Update client state
             window.gameStateManager.updateGame(freshGameData);
@@ -1547,16 +1563,224 @@
             'asking_price', 'sale_notes', 'source_name'
         ];
         
+        // Critical fields that may require user input for conflicts
+        const criticalFields = ['name', 'console', 'purchase_price', 'is_lent', 'lent_to'];
+        
+        let hasCriticalConflict = false;
+        
         for (const field of fieldsToCheck) {
             if (current[field] !== fresh[field]) {
                 changes[field] = {
                     from: current[field],
-                    to: fresh[field]
+                    to: fresh[field],
+                    isCritical: criticalFields.includes(field)
                 };
+                
+                if (criticalFields.includes(field)) {
+                    hasCriticalConflict = true;
+                }
             }
         }
         
+        // Add metadata about the conflict
+        if (Object.keys(changes).length > 0) {
+            changes._metadata = {
+                hasCriticalConflict,
+                conflictCount: Object.keys(changes).length - 1, // -1 for metadata
+                timestamp: new Date().toISOString()
+            };
+        }
+        
         return changes;
+    }
+
+    /**
+     * Show conflict resolution modal to let user choose between versions
+     */
+    function showConflictModal(gameId, gameName, gameConsole, conflicts, currentData, serverData) {
+        const modal = document.getElementById('conflictResolutionModal');
+        if (!modal) {
+            console.error('Conflict resolution modal not found');
+            return;
+        }
+
+        // Set game information
+        const gameInfo = modal.querySelector('#conflictGameInfo');
+        if (gameInfo) {
+            gameInfo.textContent = `${gameName} (${gameConsole})`;
+        }
+
+        // Populate current version column
+        const currentColumn = modal.querySelector('#currentVersion');
+        const serverColumn = modal.querySelector('#serverVersion');
+        
+        if (currentColumn && serverColumn) {
+            currentColumn.innerHTML = buildVersionDisplay(currentData, conflicts, 'current');
+            serverColumn.innerHTML = buildVersionDisplay(serverData, conflicts, 'server');
+        }
+
+        // Store data for button handlers
+        modal.dataset.gameId = gameId;
+        modal.dataset.gameName = gameName;
+        modal.dataset.gameConsole = gameConsole;
+        modal._conflictData = { conflicts, currentData, serverData };
+
+        // Show the modal
+        const bootstrapModal = new bootstrap.Modal(modal);
+        bootstrapModal.show();
+    }
+
+    /**
+     * Build HTML for version display in conflict modal
+     */
+    function buildVersionDisplay(data, conflicts, version) {
+        let html = '<div class="version-data">';
+        
+        // Show only fields that have conflicts or are important
+        const displayFields = [
+            { key: 'name', label: 'Game Name' },
+            { key: 'console', label: 'Console' },
+            { key: 'purchase_price', label: 'Purchase Price' },
+            { key: 'is_lent', label: 'Lent Status', formatter: (val) => val ? 'Yes' : 'No' },
+            { key: 'lent_to', label: 'Lent To' },
+            { key: 'condition', label: 'Condition' },
+            { key: 'current_price', label: 'Current Price' }
+        ];
+
+        displayFields.forEach(field => {
+            if (data[field.key] !== undefined && data[field.key] !== null && data[field.key] !== '') {
+                const value = field.formatter ? field.formatter(data[field.key]) : data[field.key];
+                const isConflicted = conflicts[field.key] !== undefined;
+                const conflictClass = isConflicted ? (version === 'current' ? 'conflict-current' : 'conflict-server') : '';
+                
+                html += `<div class="field-row ${conflictClass}">
+                    <strong>${field.label}:</strong> ${value}
+                    ${isConflicted && conflicts[field.key].isCritical ? ' <span class="badge bg-warning">Critical</span>' : ''}
+                </div>`;
+            }
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
+    /**
+     * Handle "Keep My Version" button click
+     */
+    function handleKeepMyVersion() {
+        const modal = document.getElementById('conflictResolutionModal');
+        if (!modal || !modal._conflictData) return;
+
+        const gameId = modal.dataset.gameId;
+        const { conflicts, currentData } = modal._conflictData;
+
+        // Log conflict resolution choice
+        logConflictResolution(gameId, 'keep_current', conflicts);
+
+        // Keep current data - no changes needed to UI or state
+        console.log(`Conflict resolved for game ${gameId}: kept current version`);
+        
+        // Close modal
+        const bootstrapModal = bootstrap.Modal.getInstance(modal);
+        bootstrapModal.hide();
+
+        // Show success message
+        window.errorHandler.showSuccessToast('Kept your version of the data');
+    }
+
+    /**
+     * Handle "Use Server Version" button click  
+     */
+    function handleUseServerVersion() {
+        const modal = document.getElementById('conflictResolutionModal');
+        if (!modal || !modal._conflictData) return;
+
+        const gameId = modal.dataset.gameId;
+        const { conflicts, currentData, serverData } = modal._conflictData;
+
+        // Log conflict resolution choice
+        logConflictResolution(gameId, 'use_server', conflicts);
+
+        // Apply server data to UI and state
+        applyServerDataToGame(gameId, serverData);
+        
+        console.log(`Conflict resolved for game ${gameId}: used server version`);
+
+        // Close modal
+        const bootstrapModal = bootstrap.Modal.getInstance(modal);
+        bootstrapModal.hide();
+
+        // Show success message
+        window.errorHandler.showSuccessToast('Updated to server version');
+    }
+
+    /**
+     * Apply server data to the game's UI and state
+     */
+    function applyServerDataToGame(gameId, serverData) {
+        // Update game state manager
+        if (window.gameStateManager) {
+            window.gameStateManager.updateGame(gameId, serverData);
+        }
+
+        // Update UI elements
+        const gameRow = document.querySelector(`tr[data-game-id="${gameId}"]`);
+        if (gameRow) {
+            updateGameRowElements(gameRow, serverData);
+        }
+    }
+
+    /**
+     * Update specific elements in a game row with new data
+     */
+    function updateGameRowElements(gameRow, data) {
+        // Update game name
+        const nameCell = gameRow.querySelector('.game-name');
+        if (nameCell && data.name) {
+            nameCell.textContent = data.name;
+        }
+
+        // Update console
+        const consoleCell = gameRow.querySelector('.console');
+        if (consoleCell && data.console) {
+            consoleCell.textContent = data.console;
+        }
+
+        // Update purchase price
+        const priceCell = gameRow.querySelector('.purchase-price');
+        if (priceCell && data.purchase_price !== undefined) {
+            priceCell.textContent = data.purchase_price ? `$${parseFloat(data.purchase_price).toFixed(2)}` : '';
+        }
+
+        // Update lent status
+        const lentCell = gameRow.querySelector('.lent-status');
+        if (lentCell) {
+            lentCell.textContent = data.is_lent ? `Lent to ${data.lent_to || 'Unknown'}` : '';
+        }
+
+        // Update condition
+        const conditionCell = gameRow.querySelector('.condition');
+        if (conditionCell && data.condition) {
+            conditionCell.textContent = data.condition;
+        }
+    }
+
+    /**
+     * Log conflict resolution for debugging
+     */
+    function logConflictResolution(gameId, choice, conflicts) {
+        const logEntry = {
+            gameId,
+            choice,
+            timestamp: new Date().toISOString(),
+            conflictCount: Object.keys(conflicts).filter(k => k !== '_metadata').length,
+            hasCriticalConflicts: conflicts._metadata?.hasCriticalConflict || false,
+            conflicts: Object.keys(conflicts).filter(k => k !== '_metadata')
+        };
+        
+        console.log('Conflict Resolution:', logEntry);
+        
+        // Could be extended to send to server for analytics
     }
     
     // Helper function to apply differential changes to DOM
@@ -2133,5 +2357,24 @@
     window.addGameRowToTable = addGameRowToTable;
     window.updateResultCount = updateResultCount;
     window.removeGameRowFromTable = removeGameRowFromTable;
+
+    // Set up conflict resolution modal button handlers
+    document.addEventListener('DOMContentLoaded', function() {
+        const keepCurrentBtn = document.getElementById('keepCurrentBtn');
+        const useServerBtn = document.getElementById('useServerBtn');
+        
+        if (keepCurrentBtn) {
+            keepCurrentBtn.addEventListener('click', handleKeepMyVersion);
+        }
+        
+        if (useServerBtn) {
+            useServerBtn.addEventListener('click', handleUseServerVersion);
+        }
+    });
+
+    // Export conflict resolution functions
+    window.showConflictModal = showConflictModal;
+    window.handleKeepMyVersion = handleKeepMyVersion;
+    window.handleUseServerVersion = handleUseServerVersion;
     
 })();

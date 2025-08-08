@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conflict Resolution System Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .test-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+        .test-result {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+        }
+        .test-pass { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .test-fail { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .conflict-current { background-color: #e3f2fd; }
+        .conflict-server { background-color: #fff3e0; }
+        .field-row { margin-bottom: 0.5rem; padding: 0.25rem; border-radius: 0.25rem; }
+        #gameTable { margin-top: 1rem; }
+        .version-data { padding: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">
+            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+            Conflict Resolution System Test
+        </h1>
+        
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            This page tests the conflict resolution functionality when server data differs from client data.
+        </div>
+
+        <!-- Mock Game Table -->
+        <div class="test-section">
+            <h3>Mock Game Table</h3>
+            <table class="table table-striped" id="gameTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Console</th>
+                        <th>Purchase Price</th>
+                        <th>Lent Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr data-game-id="1">
+                        <td class="game-name">Super Mario Bros</td>
+                        <td class="console">NES</td>
+                        <td class="purchase-price">$25.00</td>
+                        <td class="lent-status"></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="simulateConflict(1)">
+                                <i class="fas fa-exclamation-triangle me-1"></i>Simulate Conflict
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Test Controls -->
+        <div class="test-section">
+            <h3>Test Scenarios</h3>
+            <div class="row">
+                <div class="col-md-4">
+                    <button class="btn btn-primary w-100" onclick="testCriticalConflict()">
+                        <i class="fas fa-exclamation-triangle me-1"></i>Test Critical Conflict
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-warning w-100" onclick="testNonCriticalConflict()">
+                        <i class="fas fa-info-circle me-1"></i>Test Non-Critical Conflict
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-success w-100" onclick="testNoConflict()">
+                        <i class="fas fa-check me-1"></i>Test No Conflict
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="test-section">
+            <h3>Test Results</h3>
+            <div id="testResults"></div>
+        </div>
+    </div>
+
+    <!-- Conflict Resolution Modal (same as main app) -->
+    <div class="modal fade" id="conflictResolutionModal" tabindex="-1" aria-labelledby="conflictResolutionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="conflictResolutionModalLabel">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Data Conflict Detected
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        The server has different data for <strong id="conflictGameInfo">this game</strong>. Please choose which version to keep:
+                    </div>
+                    
+                    <div id="conflictDetails">
+                        <h6 class="fw-bold mb-3">Conflicting Data:</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <i class="fas fa-user me-2"></i>Your Version (Current)
+                                    </div>
+                                    <div class="card-body" id="currentVersion">
+                                        <!-- Populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <i class="fas fa-server me-2"></i>Server Version (Latest)
+                                    </div>
+                                    <div class="card-body" id="serverVersion">
+                                        <!-- Populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="keepCurrentBtn">
+                        <i class="fas fa-user me-1"></i>Keep My Version
+                    </button>
+                    <button type="button" class="btn btn-success" id="useServerBtn">
+                        <i class="fas fa-server me-1"></i>Use Server Version
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Mock state manager
+        window.gameStateManager = {
+            games: {},
+            getGame: function(id) { return this.games[id]; },
+            updateGame: function(id, data) { this.games[id] = data; },
+            addGame: function(data) { this.games[data.id] = data; }
+        };
+
+        // Mock error handler
+        window.errorHandler = {
+            showSuccessToast: function(message) {
+                addTestResult('success', 'Success Toast: ' + message);
+            },
+            showErrorToast: function(message) {
+                addTestResult('error', 'Error Toast: ' + message);
+            }
+        };
+
+        // Initialize mock data
+        window.gameStateManager.addGame({
+            id: 1,
+            name: 'Super Mario Bros',
+            console: 'NES',
+            purchase_price: 25.00,
+            current_price: 30.00,
+            is_lent: false,
+            lent_to: null,
+            condition: 'Complete'
+        });
+
+        // Test helper functions
+        function addTestResult(type, message) {
+            const resultsDiv = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result test-${type === 'success' ? 'pass' : 'fail'}`;
+            resultDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : 'times'} me-2"></i>${message}`;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        function clearTestResults() {
+            document.getElementById('testResults').innerHTML = '';
+        }
+
+        // Test scenarios
+        function testCriticalConflict() {
+            clearTestResults();
+            addTestResult('success', 'Testing critical conflict detection...');
+            
+            const currentData = window.gameStateManager.getGame(1);
+            const serverData = {
+                ...currentData,
+                name: 'Super Mario Bros. 3', // Critical field change
+                purchase_price: 35.00,      // Critical field change
+                is_lent: true,              // Critical field change
+                lent_to: 'John Doe'         // Critical field change
+            };
+
+            // Test conflict detection
+            const changes = detectGameDataChanges(currentData, serverData);
+            
+            if (changes._metadata?.hasCriticalConflict) {
+                addTestResult('success', 'Critical conflict detected correctly');
+                showConflictModal(1, currentData.name, currentData.console, changes, currentData, serverData);
+            } else {
+                addTestResult('error', 'Critical conflict NOT detected - test failed');
+            }
+        }
+
+        function testNonCriticalConflict() {
+            clearTestResults();
+            addTestResult('success', 'Testing non-critical conflict...');
+            
+            const currentData = window.gameStateManager.getGame(1);
+            const serverData = {
+                ...currentData,
+                current_price: 40.00,       // Non-critical field change
+                condition: 'Good'           // Non-critical field change
+            };
+
+            const changes = detectGameDataChanges(currentData, serverData);
+            
+            if (changes._metadata?.hasCriticalConflict) {
+                addTestResult('error', 'Non-critical changes marked as critical - test failed');
+            } else if (Object.keys(changes).length > 0) {
+                addTestResult('success', 'Non-critical conflicts detected correctly (no modal should show)');
+                addTestResult('success', 'Changes would be auto-applied: ' + Object.keys(changes).filter(k => k !== '_metadata').join(', '));
+            } else {
+                addTestResult('error', 'No changes detected - test setup failed');
+            }
+        }
+
+        function testNoConflict() {
+            clearTestResults();
+            addTestResult('success', 'Testing no conflict scenario...');
+            
+            const currentData = window.gameStateManager.getGame(1);
+            const serverData = { ...currentData }; // Identical data
+
+            const changes = detectGameDataChanges(currentData, serverData);
+            
+            if (Object.keys(changes).length === 0) {
+                addTestResult('success', 'No conflicts detected correctly');
+            } else {
+                addTestResult('error', 'False positive - detected changes when none exist');
+            }
+        }
+
+        function simulateConflict(gameId) {
+            testCriticalConflict();
+        }
+    </script>
+
+    <!-- Include the conflict resolution functions from main.js -->
+    <script src="../app/static/js/main.js"></script>
+    <script>
+        // Set up event handlers for modal buttons after DOM loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const keepCurrentBtn = document.getElementById('keepCurrentBtn');
+            const useServerBtn = document.getElementById('useServerBtn');
+            
+            if (keepCurrentBtn) {
+                keepCurrentBtn.addEventListener('click', function() {
+                    if (window.handleKeepMyVersion) {
+                        window.handleKeepMyVersion();
+                    }
+                    addTestResult('success', 'Keep My Version button clicked');
+                });
+            }
+            
+            if (useServerBtn) {
+                useServerBtn.addEventListener('click', function() {
+                    if (window.handleUseServerVersion) {
+                        window.handleUseServerVersion();
+                    }
+                    addTestResult('success', 'Use Server Version button clicked');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
