@@ -953,6 +953,307 @@
         }
     };
 
+    /**
+     * Enhanced mark as lent with optimistic updates
+     */
+    window.markGameAsLentOptimistic = async function(gameId, gameName, gameConsole, lentData) {
+        // Get the game from state or create minimal object
+        let game = window.gameStateManager.getGame(gameId);
+        if (!game) {
+            game = { 
+                id: gameId, 
+                name: gameName, 
+                console: gameConsole, 
+                is_wanted: false,
+                is_lent: false
+            };
+        }
+        
+        // Create the lent game object
+        const lentGame = {
+            ...game,
+            is_lent: true,
+            lent_date: lentData.lent_date,
+            lent_to: lentData.lent_to
+        };
+        
+        // Store snapshot for rollback
+        const snapshot = {
+            originalGame: { ...game },
+            rowHtml: document.querySelector(`tr[data-game-id="${gameId}"]`)?.outerHTML
+        };
+        
+        // UI update function
+        const uiUpdateFn = () => {
+            // Update state manager
+            window.gameStateManager.updateGame(lentGame);
+            
+            // Update the game row to show lent status
+            const row = document.querySelector(`tr[data-game-id="${gameId}"]`);
+            if (row) {
+                // Update status badge and actions
+                const statusCell = row.querySelector('.name-col .name-content');
+                if (statusCell) {
+                    // Remove existing status badges
+                    const existingBadges = statusCell.querySelectorAll('.badge');
+                    existingBadges.forEach(badge => {
+                        if (!badge.textContent.includes('For Sale')) {
+                            badge.remove();
+                        }
+                    });
+                    
+                    // Add lent out badge
+                    const lentBadge = document.createElement('span');
+                    lentBadge.className = 'badge bg-info text-dark ms-2';
+                    lentBadge.textContent = 'Lent Out';
+                    statusCell.appendChild(lentBadge);
+                }
+                
+                // Update expanded detail view if it exists and is open for this game
+                const expandedRow = row.nextElementSibling;
+                if (expandedRow && expandedRow.classList.contains('details-row')) {
+                    // Re-render the expanded content with new lent status
+                    // This will be handled by the existing game detail rendering logic
+                }
+            }
+            
+            // Update in allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = lentGame;
+                }
+            }
+        };
+        
+        // API call function
+        const apiFn = async () => {
+            const response = await fetch(`/api/game/${gameId}/mark_as_lent`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(lentData)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to mark game as lent out');
+            }
+            
+            return await response.json();
+        };
+        
+        // Rollback function
+        const rollbackFn = () => {
+            // Restore original state
+            window.gameStateManager.updateGame(snapshot.originalGame);
+            
+            // Restore the row HTML if available
+            if (snapshot.rowHtml) {
+                const currentRow = document.querySelector(`tr[data-game-id="${gameId}"]`);
+                if (currentRow) {
+                    // Create temporary container to parse HTML
+                    const temp = document.createElement('tbody');
+                    temp.innerHTML = snapshot.rowHtml;
+                    const restoredRow = temp.firstChild;
+                    
+                    // Replace current row with original
+                    currentRow.parentNode.replaceChild(restoredRow, currentRow);
+                }
+            }
+            
+            // Restore in allGames array
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = snapshot.originalGame;
+                }
+            }
+        };
+        
+        try {
+            const result = await window.optimisticUpdater.applyOptimisticUpdate(
+                gameId,
+                'mark_as_lent',
+                uiUpdateFn,
+                apiFn,
+                {
+                    rollbackFn,
+                    onSuccess: (data) => {
+                        // Show success message
+                        window.errorHandler.showSuccess(
+                            'Game marked as lent out successfully!'
+                        );
+                        
+                        // Close modal if open
+                        const modal = document.getElementById('markLentModal');
+                        if (modal) {
+                            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                            if (bootstrapModal) {
+                                bootstrapModal.hide();
+                            }
+                        }
+                    },
+                    onError: (error) => {
+                        window.errorHandler.showError(
+                            error.message || 'Failed to mark game as lent out'
+                        );
+                    }
+                }
+            );
+            
+            return result;
+        } catch (error) {
+            console.error('Error in optimistic mark as lent:', error);
+            throw error;
+        }
+    };
+
+    /**
+     * Enhanced return from lent with optimistic updates
+     */
+    window.unmarkGameAsLentOptimistic = async function(gameId, gameName, gameConsole) {
+        // Get the game from state or create minimal object
+        let game = window.gameStateManager.getGame(gameId);
+        if (!game) {
+            game = { 
+                id: gameId, 
+                name: gameName, 
+                console: gameConsole, 
+                is_wanted: false,
+                is_lent: true
+            };
+        }
+        
+        // Create the returned game object
+        const returnedGame = {
+            ...game,
+            is_lent: false,
+            lent_date: null,
+            lent_to: null
+        };
+        
+        // Store snapshot for rollback
+        const snapshot = {
+            originalGame: { ...game },
+            rowHtml: document.querySelector(`tr[data-game-id="${gameId}"]`)?.outerHTML
+        };
+        
+        // UI update function
+        const uiUpdateFn = () => {
+            // Update state manager
+            window.gameStateManager.updateGame(returnedGame);
+            
+            // Update the game row to remove lent status
+            const row = document.querySelector(`tr[data-game-id="${gameId}"]`);
+            if (row) {
+                // Remove lent out badge
+                const statusCell = row.querySelector('.name-col .name-content');
+                if (statusCell) {
+                    const lentBadge = statusCell.querySelector('.badge.bg-info');
+                    if (lentBadge && lentBadge.textContent.includes('Lent Out')) {
+                        lentBadge.remove();
+                    }
+                }
+                
+                // Update expanded detail view if it exists and is open for this game
+                const expandedRow = row.nextElementSibling;
+                if (expandedRow && expandedRow.classList.contains('details-row')) {
+                    // Re-render the expanded content without lent status
+                    // This will be handled by the existing game detail rendering logic
+                }
+            }
+            
+            // Update in allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = returnedGame;
+                }
+            }
+        };
+        
+        // API call function
+        const apiFn = async () => {
+            const response = await fetch(`/api/game/${gameId}/unmark_as_lent`, {
+                method: 'DELETE'
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to mark game as returned');
+            }
+            
+            return await response.json();
+        };
+        
+        // Rollback function
+        const rollbackFn = () => {
+            // Restore original state
+            window.gameStateManager.updateGame(snapshot.originalGame);
+            
+            // Restore the row HTML if available
+            if (snapshot.rowHtml) {
+                const currentRow = document.querySelector(`tr[data-game-id="${gameId}"]`);
+                if (currentRow) {
+                    // Create temporary container to parse HTML
+                    const temp = document.createElement('tbody');
+                    temp.innerHTML = snapshot.rowHtml;
+                    const restoredRow = temp.firstChild;
+                    
+                    // Replace current row with original
+                    currentRow.parentNode.replaceChild(restoredRow, currentRow);
+                }
+            }
+            
+            // Restore in allGames array
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = snapshot.originalGame;
+                }
+            }
+        };
+        
+        try {
+            const result = await window.optimisticUpdater.applyOptimisticUpdate(
+                gameId,
+                'unmark_as_lent',
+                uiUpdateFn,
+                apiFn,
+                {
+                    rollbackFn,
+                    onSuccess: (data) => {
+                        // Show success message
+                        window.errorHandler.showSuccess(
+                            'Game marked as returned successfully!'
+                        );
+                        
+                        // Close modal if open
+                        const modal = document.getElementById('unmarkLentModal');
+                        if (modal) {
+                            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                            if (bootstrapModal) {
+                                bootstrapModal.hide();
+                            }
+                        }
+                    },
+                    onError: (error) => {
+                        window.errorHandler.showError(
+                            error.message || 'Failed to mark game as returned'
+                        );
+                    }
+                }
+            );
+            
+            return result;
+        } catch (error) {
+            console.error('Error in optimistic return from lent:', error);
+            throw error;
+        }
+    };
+
     // Export functions for use in other scripts
     window.createGameRow = createGameRow;
     window.addGameRowToTable = addGameRowToTable;

@@ -5,7 +5,10 @@
       "Bash(source:*)",
       "Bash(pip install:*)",
       "Bash(python run_tests.py:*)",
-      "Bash(python -m pytest tests/test_optimistic_ui.py -v --tb=short)"
+      "Bash(python -m pytest tests/test_optimistic_ui.py -v --tb=short)",
+      "Bash(python -m pytest tests/test_optimistic_ui.py::TestLentStatusOperations -v)",
+      "Bash(python3 -m pytest tests/test_optimistic_ui.py::TestLentStatusOperations -v)",
+      "Bash(python3:*)"
     ],
     "deny": []
   }

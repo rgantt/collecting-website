@@ -306,6 +306,96 @@ class TestPurchaseConversion:
         assert 'error' in error_data
 
 
+class TestLentStatusOperations:
+    """Test suite for lent status optimistic operations"""
+    
+    def test_mark_as_lent_success(self, client):
+        """Test successful mark as lent operation"""
+        # First add a game to collection
+        add_response = client.post('/api/collection/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/mario-party-3',
+                'condition': 'CIB',
+                'purchase_price': 44.99
+            }
+        )
+        game_data = json.loads(add_response.data)
+        # The lent API expects physical_game_id, which is stored as 'id' in the response
+        physical_game_id = game_data['game']['id']
+        
+        # Then mark it as lent
+        lent_response = client.post(f'/api/game/{physical_game_id}/mark_as_lent',
+            json={
+                'lent_date': '2024-02-01',
+                'lent_to': 'Friend Name'
+            }
+        )
+        
+        assert lent_response.status_code == 200
+        lent_data = json.loads(lent_response.data)
+        assert 'message' in lent_data
+    
+    def test_mark_as_lent_missing_required_fields(self, client):
+        """Test mark as lent without required fields"""
+        # Add a game to collection first
+        add_response = client.post('/api/collection/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/super-smash-bros',
+                'condition': 'CIB',
+                'purchase_price': 39.99
+            }
+        )
+        game_data = json.loads(add_response.data)
+        physical_game_id = game_data['game']['id']
+        
+        # Try to mark as lent without required fields
+        lent_response = client.post(f'/api/game/{physical_game_id}/mark_as_lent',
+            json={
+                'lent_to': 'Someone'
+                # Missing lent_date
+            }
+        )
+        
+        assert lent_response.status_code == 400
+        error_data = json.loads(lent_response.data)
+        assert 'error' in error_data
+    
+    def test_unmark_as_lent_success(self, client):
+        """Test successful return from lent operation"""
+        # Add a game to collection
+        add_response = client.post('/api/collection/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/diddy-kong-racing',
+                'condition': 'CIB',
+                'purchase_price': 29.99
+            }
+        )
+        game_data = json.loads(add_response.data)
+        physical_game_id = game_data['game']['id']
+        
+        # Mark it as lent first
+        lent_response = client.post(f'/api/game/{physical_game_id}/mark_as_lent',
+            json={
+                'lent_date': '2024-02-01',
+                'lent_to': 'Test Person'
+            }
+        )
+        assert lent_response.status_code == 200
+        
+        # Then return from lent
+        return_response = client.delete(f'/api/game/{physical_game_id}/unmark_as_lent')
+        assert return_response.status_code == 200
+        return_data = json.loads(return_response.data)
+        assert 'message' in return_data
+    
+    def test_unmark_as_lent_not_lent(self, client):
+        """Test return from lent on game that's not lent out"""
+        return_response = client.delete('/api/game/99999/unmark_as_lent')
+        assert return_response.status_code == 404
+        error_data = json.loads(return_response.data)
+        assert 'error' in error_data
+
+
 class TestConcurrentOperations:
     """Test suite for concurrent optimistic operations"""
     

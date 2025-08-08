@@ -539,6 +539,151 @@
                 restoreFetch();
             });
 
+            // Test Mark as Lent Optimistic
+            await testRunner.runTest('Mark as Lent: Optimistic update succeeds', async () => {
+                // Add a collection game to state
+                const collectionGame = { id: 270, name: 'Mario Party 2', console: 'N64', is_wanted: false, is_lent: false };
+                window.gameStateManager.addGame(collectionGame);
+                
+                mockFetch({
+                    'POST /api/game/270/mark_as_lent': {
+                        ok: true,
+                        data: { message: 'Game marked as lent out successfully!' }
+                    }
+                });
+
+                const lentData = {
+                    lent_date: '2024-02-01',
+                    lent_to: 'Friend Name'
+                };
+
+                await window.markGameAsLentOptimistic(270, 'Mario Party 2', 'N64', lentData);
+                
+                // Check that game was marked as lent in state
+                const lentGame = window.gameStateManager.getGame(270);
+                assertNotNull(lentGame, 'Game should be in state manager');
+                assertEqual(lentGame.name, 'Mario Party 2');
+                assertEqual(lentGame.is_lent, true);
+                assertEqual(lentGame.lent_to, 'Friend Name');
+                assertEqual(lentGame.lent_date, '2024-02-01');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(270);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Mark as Lent: Rollback on failure', async () => {
+                // Add a collection game to state
+                const collectionGame = { id: 280, name: 'Super Mario 64', console: 'N64', is_wanted: false, is_lent: false };
+                window.gameStateManager.addGame(collectionGame);
+                
+                mockFetch({
+                    'POST /api/game/280/mark_as_lent': {
+                        ok: false,
+                        status: 400,
+                        data: { error: 'Lent date is required' }
+                    }
+                });
+
+                const lentData = {
+                    lent_to: 'Someone'
+                    // Missing lent_date
+                };
+
+                try {
+                    await window.markGameAsLentOptimistic(280, 'Super Mario 64', 'N64', lentData);
+                    throw new Error('Should have thrown error');
+                } catch (error) {
+                    // Expected to fail
+                }
+                
+                // Check that game was restored to original state
+                const restoredGame = window.gameStateManager.getGame(280);
+                assertNotNull(restoredGame, 'Game should be restored to state');
+                assertEqual(restoredGame.name, 'Super Mario 64');
+                assertEqual(restoredGame.is_lent, false);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(280);
+                restoreFetch();
+            });
+
+            // Test Return from Lent Optimistic
+            await testRunner.runTest('Return from Lent: Optimistic update succeeds', async () => {
+                // Add a lent game to state
+                const lentGame = { 
+                    id: 290, 
+                    name: 'GoldenEye 007', 
+                    console: 'N64', 
+                    is_wanted: false, 
+                    is_lent: true,
+                    lent_to: 'Test Person',
+                    lent_date: '2024-01-15'
+                };
+                window.gameStateManager.addGame(lentGame);
+                
+                mockFetch({
+                    'DELETE /api/game/290/unmark_as_lent': {
+                        ok: true,
+                        data: { message: 'Game marked as returned successfully!' }
+                    }
+                });
+
+                await window.unmarkGameAsLentOptimistic(290, 'GoldenEye 007', 'N64');
+                
+                // Check that game was marked as returned in state
+                const returnedGame = window.gameStateManager.getGame(290);
+                assertNotNull(returnedGame, 'Game should be in state manager');
+                assertEqual(returnedGame.name, 'GoldenEye 007');
+                assertEqual(returnedGame.is_lent, false);
+                assertEqual(returnedGame.lent_to, null);
+                assertEqual(returnedGame.lent_date, null);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(290);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Return from Lent: Rollback on failure', async () => {
+                // Add a lent game to state
+                const lentGame = { 
+                    id: 300, 
+                    name: 'Perfect Dark', 
+                    console: 'N64', 
+                    is_wanted: false, 
+                    is_lent: true,
+                    lent_to: 'Friend',
+                    lent_date: '2024-01-20'
+                };
+                window.gameStateManager.addGame(lentGame);
+                
+                mockFetch({
+                    'DELETE /api/game/300/unmark_as_lent': {
+                        ok: false,
+                        status: 404,
+                        data: { error: 'Game not found or not lent out' }
+                    }
+                });
+
+                try {
+                    await window.unmarkGameAsLentOptimistic(300, 'Perfect Dark', 'N64');
+                    throw new Error('Should have thrown error');
+                } catch (error) {
+                    // Expected to fail
+                }
+                
+                // Check that game was restored to lent state
+                const restoredGame = window.gameStateManager.getGame(300);
+                assertNotNull(restoredGame, 'Game should be restored to state');
+                assertEqual(restoredGame.name, 'Perfect Dark');
+                assertEqual(restoredGame.is_lent, true);
+                assertEqual(restoredGame.lent_to, 'Friend');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(300);
+                restoreFetch();
+            });
+
             // Test Remove from Collection Optimistic
             await testRunner.runTest('Remove from Collection: Optimistic update succeeds', async () => {
                 // First add a game to state

@@ -7,8 +7,9 @@
 - ✅ **Task 2.1: Mark/Unmark For Sale** - **COMPLETED** 
 - ✅ **Task 2.2: Add Game Optimistic Updates** - **COMPLETED**
 - ✅ **Task 2.3: Remove Game Optimistic Updates** - **COMPLETED**
-- ✅ **Task 2.4: Purchase Conversion Optimistic Updates** - **COMPLETED** (Phase 2: 4/6 tasks)
-- 📍 **Next Up**: Task 2.5 - Lent Out Status Optimistic Updates
+- ✅ **Task 2.4: Purchase Conversion Optimistic Updates** - **COMPLETED**
+- ✅ **Task 2.5: Lent Out Status Optimistic Updates** - **COMPLETED** (Phase 2: 5/6 tasks)
+- 📍 **Next Up**: Task 2.6 - Edit Details Optimistic Updates
 
 ## Overview
 Current flow: `User Action → API Call → Full Page Refresh`  
@@ -177,21 +178,23 @@ Target flow: `User Action → Immediate UI Update → Background API Call → Se
 
 ---
 
-### Task 2.5: Lent Out Status Optimistic Updates
-**Assignee**: _TBD_  
+### Task 2.5: Lent Out Status Optimistic Updates ✅ **COMPLETED**
+**Assignee**: Cascade AI  
 **Estimate**: 3 hours  
 **Priority**: LOW
 
 **Description**: Convert lent out operations to use optimistic updates.
 
 **Acceptance Criteria**:
-- [ ] Update lent status display immediately
-- [ ] Switch between "Mark as Lent" and "Return from Lent" buttons immediately
-- [ ] Update lent details (date, person) in expanded view immediately
-- [ ] Implement rollback for both mark and unmark operations
+- [x] Update lent status display immediately
+- [x] Switch between "Mark as Lent" and "Return from Lent" buttons immediately
+- [x] Update lent details (date, person) in expanded view immediately
+- [x] Implement rollback for both mark and unmark operations
 
-**Files to Modify**:
-- `static/js/main.js` (lent functions)
+**Files Modified**:
+- Updated `static/js/main.js` with `markGameAsLentOptimistic` and `unmarkGameAsLentOptimistic` functions
+- Modified `app/templates/index.html` to use optimistic lent status functions
+- Added comprehensive tests for lent status operations in both backend and frontend test suites
 
 **Dependencies**: Task 1.1, Task 1.2
 

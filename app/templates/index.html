@@ -3185,6 +3185,8 @@
         document.getElementById('confirmMarkLentBtn').addEventListener('click', async () => {
             const modal = document.getElementById('markLentModal');
             const gameId = modal.dataset.gameId;
+            const gameName = modal.dataset.gameName;
+            const gameConsole = modal.dataset.gameConsole;
             const lentDate = document.getElementById('lentDateInput').value;
             const lentTo = document.getElementById('lentToInput').value.trim();
             const errorDiv = document.getElementById('markLentError');
@@ -3213,38 +3215,25 @@
             submitBtn.textContent = 'Marking as Lent...';
             
             try {
-                const requestBody = {
+                const lentData = {
                     lent_date: lentDate,
                     lent_to: lentTo
                 };
                 
-                const response = await fetch(`/api/game/${gameId}/mark_as_lent`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
-                });
+                // Use optimistic update
+                await window.markGameAsLentOptimistic(gameId, gameName, gameConsole, lentData);
                 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to mark game as lent out');
-                }
-                
-                const result = await response.json();
-                
-                // Show success message
+                // Show success message in modal
                 successDiv.textContent = 'Game marked as lent out successfully!';
                 successDiv.classList.remove('d-none');
                 
                 // Update button
                 submitBtn.textContent = 'Marked as Lent!';
                 
-                // Close modal after delay and refresh games
+                // Close modal after short delay
                 setTimeout(() => {
                     const bootstrapModal = bootstrap.Modal.getInstance(modal);
                     bootstrapModal.hide();
-                    loadAllGames();
                 }, 1500);
                 
             } catch (error) {
@@ -3295,6 +3284,8 @@
         document.getElementById('confirmUnmarkLentBtn').addEventListener('click', async () => {
             const modal = document.getElementById('unmarkLentModal');
             const gameId = modal.dataset.gameId;
+            const gameName = modal.dataset.gameName;
+            const gameConsole = modal.dataset.gameConsole;
             const errorDiv = document.getElementById('unmarkLentError');
             const successDiv = document.getElementById('unmarkLentSuccess');
             const submitBtn = document.getElementById('confirmUnmarkLentBtn');
@@ -3308,29 +3299,20 @@
             submitBtn.textContent = 'Marking as Returned...';
             
             try {
-                const response = await fetch(`/api/game/${gameId}/unmark_as_lent`, {
-                    method: 'DELETE'
-                });
+                // Use optimistic update
+                await window.unmarkGameAsLentOptimistic(gameId, gameName, gameConsole);
                 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to mark game as returned');
-                }
-                
-                const result = await response.json();
-                
-                // Show success message
+                // Show success message in modal
                 successDiv.textContent = 'Game marked as returned successfully!';
                 successDiv.classList.remove('d-none');
                 
                 // Update button
                 submitBtn.textContent = 'Marked as Returned!';
                 
-                // Close modal after delay and refresh games
+                // Close modal after short delay
                 setTimeout(() => {
                     const bootstrapModal = bootstrap.Modal.getInstance(modal);
                     bootstrapModal.hide();
-                    loadAllGames();
                 }, 1500);
                 
             } catch (error) {
