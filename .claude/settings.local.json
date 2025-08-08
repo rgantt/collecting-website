@@ -9,7 +9,8 @@
       "Bash(python -m pytest tests/test_optimistic_ui.py::TestLentStatusOperations -v)",
       "Bash(python3 -m pytest tests/test_optimistic_ui.py::TestLentStatusOperations -v)",
       "Bash(python3:*)",
-      "Bash(open tests/test_loading_states.html)"
+      "Bash(open tests/test_loading_states.html)",
+      "Bash(open tests/test_optimistic_updates_comprehensive.html)"
     ],
     "deny": []
   }
