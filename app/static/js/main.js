@@ -420,13 +420,27 @@
             return;
         }
         
-        // Animate removal
+        // Also find and remove the associated details row
+        const detailsRow = row.nextElementSibling;
+        const hasDetailsRow = detailsRow && detailsRow.classList.contains('details-row');
+        
+        // Animate removal of main row
         row.style.transition = 'opacity 0.3s ease, transform 0.3s ease, height 0.3s ease';
         row.style.opacity = '0';
         row.style.transform = 'translateX(-20px)';
         
+        // If there's an expanded details row, animate it too
+        if (hasDetailsRow) {
+            detailsRow.style.transition = 'opacity 0.3s ease, height 0.3s ease';
+            detailsRow.style.opacity = '0';
+            detailsRow.style.height = '0';
+        }
+        
         setTimeout(() => {
             row.remove();
+            if (hasDetailsRow) {
+                detailsRow.remove();
+            }
             if (onComplete) onComplete();
         }, 300);
     }
@@ -783,32 +797,29 @@
      * Enhanced remove from collection with optimistic updates
      */
     window.removeFromCollectionOptimistic = async function(purchasedGameId, gameId, gameName, gameConsole) {
-        // Get the game from state or create minimal object
-        let game = window.gameStateManager.getGame(gameId);
-        if (!game) {
-            // Create minimal game object for UI updates
-            game = { 
-                id: gameId, 
-                purchased_game_id: purchasedGameId,
-                name: gameName, 
-                console: gameConsole, 
-                is_wanted: false 
-            };
-        }
+        console.log('🗑️ DEBUG: Starting removeFromCollection (no optimistic UI)', {
+            purchasedGameId, gameId, gameName, gameConsole
+        });
         
-        // Store snapshot for rollback
-        const snapshot = {
-            game: { ...game },
-            rowHtml: document.querySelector(`tr[data-game-id="${gameId}"]`)?.outerHTML
-        };
-        
-        // UI update function
-        const uiUpdateFn = () => {
-            // Remove from DOM with animation
-            removeGameRowFromTable(gameId);
+        try {
+            console.log('🔄 DEBUG: Making API call, game will be removed after server responds');
             
-            // Update count and totals
-            updateResultCount(-1, game);
+            // Make API call first
+            const response = await fetch(`/api/purchased_game/${purchasedGameId}/remove_from_collection`, {
+                method: 'DELETE'
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error(`❌ Delete failed with status ${response.status}:`, errorData);
+                throw new Error(errorData.error || 'Failed to remove game from collection');
+            }
+            
+            const result = await response.json();
+            console.log('✅ DEBUG: Delete succeeded, now removing from UI:', result);
+            
+            // Only remove from UI after successful API response
+            removeGameRowFromTable(gameId);
             
             // Remove from state manager
             window.gameStateManager.removeGame(gameId);
@@ -818,106 +829,41 @@
                 const index = window.allGames.findIndex(g => g.id == gameId || g.purchased_game_id == purchasedGameId);
                 if (index !== -1) {
                     window.allGames.splice(index, 1);
-                }
-            }
-        };
-        
-        // API call function
-        const apiFn = async () => {
-            const response = await fetch(`/api/purchased_game/${purchasedGameId}/remove_from_collection`, {
-                method: 'DELETE'
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to remove game from collection');
-            }
-            
-            return await response.json();
-        };
-        
-        // Rollback function
-        const rollbackFn = () => {
-            // Restore to state manager
-            window.gameStateManager.addGame(snapshot.game);
-            
-            // Restore the row if we have the HTML
-            if (snapshot.rowHtml) {
-                const tbody = document.querySelector('#collectionTable tbody');
-                if (tbody) {
-                    // Create temporary container to parse HTML
-                    const temp = document.createElement('tbody');
-                    temp.innerHTML = snapshot.rowHtml;
-                    const restoredRow = temp.firstChild;
-                    
-                    // Find the right position to insert (maintain sort order)
-                    let inserted = false;
-                    const rows = tbody.querySelectorAll('tr');
-                    for (let row of rows) {
-                        if (row.dataset.gameId && parseInt(row.dataset.gameId) > parseInt(gameId)) {
-                            tbody.insertBefore(restoredRow, row);
-                            inserted = true;
-                            break;
-                        }
-                    }
-                    if (!inserted) {
-                        tbody.appendChild(restoredRow);
-                    }
-                    
-                    // Animate restoration
-                    restoredRow.style.opacity = '0';
-                    restoredRow.style.transform = 'translateX(-20px)';
-                    setTimeout(() => {
-                        restoredRow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                        restoredRow.style.opacity = '1';
-                        restoredRow.style.transform = 'translateX(0)';
-                    }, 10);
+                    console.log(`🗑️ Removed game from allGames array, new count: ${window.allGames.length}`);
                 }
             }
             
-            // Update count and totals
-            updateResultCount(1, snapshot.game);
+            // Update count and totals - get game data for calculation
+            const game = { 
+                id: gameId, 
+                purchased_game_id: purchasedGameId,
+                name: gameName, 
+                console: gameConsole, 
+                is_wanted: false 
+            };
+            updateResultCount(-1, game);
             
-            // Restore to allGames array
-            if (window.allGames) {
-                window.allGames.push(snapshot.game);
-            }
-        };
-        
-        try {
-            const result = await window.optimisticUpdater.applyOptimisticUpdate(
-                gameId,
-                'remove_from_collection',
-                uiUpdateFn,
-                apiFn,
-                {
-                    rollbackFn,
-                    onSuccess: () => {
-                        // Show success message
-                        window.errorHandler.showSuccess(
-                            `"${gameName}" has been removed from your collection`
-                        );
-                        
-                        // Close modal if open
-                        const modal = document.getElementById('removeFromCollectionModal');
-                        if (modal) {
-                            const bootstrapModal = bootstrap.Modal.getInstance(modal);
-                            if (bootstrapModal) {
-                                bootstrapModal.hide();
-                            }
-                        }
-                    },
-                    onError: (error) => {
-                        window.errorHandler.showError(
-                            error.message || 'Failed to remove game from collection'
-                        );
-                    }
-                }
+            // Show success message
+            window.errorHandler.showSuccess(
+                `"${gameName}" has been removed from your collection`
             );
             
+            // Close modal if open
+            const modal = document.getElementById('removeFromCollectionModal');
+            if (modal) {
+                const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                if (bootstrapModal) {
+                    bootstrapModal.hide();
+                }
+            }
+            
             return result;
+            
         } catch (error) {
-            console.error('Error in optimistic collection removal:', error);
+            console.error('❌ DEBUG: Error in collection removal:', error);
+            window.errorHandler.showError(
+                error.message || 'Failed to remove game from collection'
+            );
             throw error;
         }
     };
