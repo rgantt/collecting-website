@@ -87,11 +87,23 @@
         }
         tr.appendChild(dateTd);
         
-        // Add click handler to expand details
-        tr.addEventListener('click', function() {
-            // This will be handled by the existing expandGameDetails function
-            if (window.expandGameDetails) {
-                window.expandGameDetails(game.id);
+        // Add click handler to expand details (same as in index.html template)
+        tr.addEventListener('click', function(e) {
+            const gameId = this.dataset.gameId;
+            const detailsDiv = document.querySelector(`.game-details[data-game-id="${gameId}"]`);
+            
+            if (!detailsDiv) return;
+            
+            const wasVisible = detailsDiv.classList.contains('show');
+            
+            // Hide all details and remove selected state
+            document.querySelectorAll('.game-details').forEach(div => div.classList.remove('show'));
+            document.querySelectorAll('.game-row').forEach(r => r.classList.remove('selected'));
+            
+            // Toggle this one if it wasn't already visible
+            if (!wasVisible) {
+                detailsDiv.classList.add('show');
+                this.classList.add('selected');
             }
         });
         
@@ -330,33 +342,10 @@
      * Enhanced add game to collection with optimistic updates
      */
     window.addToCollectionOptimistic = async function(gameData) {
-        console.log('🎮 DEBUG: Starting addToCollectionOptimistic', gameData);
-        
-        // Generate a temporary ID for the new game
-        const tempId = `temp_${Date.now()}`;
-        const optimisticGame = {
-            ...gameData,
-            id: tempId,
-            purchased_game_id: tempId,
-            is_wanted: false,
-            acquisition_date: gameData.purchase_date || new Date().toISOString()
-        };
-        
+        console.log('🎮 DEBUG: Starting addToCollection (no optimistic UI)', gameData);
         
         try {
-            console.log('🔄 DEBUG: Applying UI updates immediately');
-            
-            // 1. Apply immediate UI updates
-            window.gameStateManager.addGame(optimisticGame);
-            const row = createGameRow(optimisticGame, false);
-            addGameRowToTable(row, 'collectionTable', true);
-            updateResultCount(1, optimisticGame);
-            
-            if (window.allGames) {
-                window.allGames.unshift(optimisticGame);
-            }
-            
-            console.log('✅ DEBUG: UI updated, making API call');
+            console.log('🔄 DEBUG: Making API call, game will appear after server responds');
             
             // 2. Make background API call
             const response = await fetch('/api/collection/add', {
@@ -376,28 +365,25 @@
                 throw new Error(data.error || 'Failed to add game to collection');
             }
             
-            // 3. Update with real game data on success
+            // 3. Add the game to UI for the first time with real server data
             const realGame = data.game;
-            window.gameStateManager.removeGame(tempId);
             window.gameStateManager.addGame(realGame);
             
-            // Update the row with real game data
-            const updatedRow = document.querySelector(`tr[data-game-id="${tempId}"]`);
-            if (updatedRow) {
-                // Update data attributes
-                updatedRow.dataset.gameId = realGame.id;
-                updatedRow.dataset.purchasedGameId = realGame.purchased_game_id || realGame.id;
-                
-                // Update the actual row content with server data
-                console.log('🔄 DEBUG: Updating row content with real game data:', realGame);
-                updateRowContent(updatedRow, realGame);
-            }
-            
-            // Update in allGames array
+            // Add to allGames array and render
             if (window.allGames) {
-                const index = window.allGames.findIndex(g => g.id === tempId);
-                if (index !== -1) {
-                    window.allGames[index] = realGame;
+                window.allGames.unshift(realGame);
+                
+                // Render with the new game data
+                const searchInput = document.getElementById('searchInput');
+                const currentSearchTerm = searchInput ? searchInput.value : '';
+                
+                if (currentSearchTerm && window.filterGames) {
+                    // Re-apply current search filter
+                    const filtered = window.filterGames(window.allGames, currentSearchTerm);
+                    window.renderGames(filtered, false, 1);
+                } else {
+                    // No active search, show all games
+                    window.renderGames(window.allGames, true, 1);
                 }
             }
             
@@ -411,32 +397,12 @@
             return data;
             
         } catch (error) {
-            console.error('❌ DEBUG: Error occurred, rolling back:', error);
+            console.error('❌ DEBUG: Error occurred:', error);
             
-            // Rollback UI changes
-            window.gameStateManager.removeGame(tempId);
-            
-            const rollbackRow = document.querySelector(`tr[data-game-id="${tempId}"]`);
-            if (rollbackRow) {
-                rollbackRow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                rollbackRow.style.opacity = '0';
-                rollbackRow.style.transform = 'translateY(-10px)';
-                setTimeout(() => rollbackRow.remove(), 300);
-            }
-            
-            updateResultCount(-1, optimisticGame);
-            
-            if (window.allGames) {
-                const index = window.allGames.findIndex(g => g.id === tempId);
-                if (index !== -1) {
-                    window.allGames.splice(index, 1);
-                }
-            }
-            
-            // Show error message
+            // No rollback needed since we didn't add optimistic UI changes
+            // Just show error message
             window.errorHandler.showErrorToast(error.message || 'Failed to add game to collection');
             
-            console.log('🔄 DEBUG: Rollback completed');
             throw error;
         }
     };

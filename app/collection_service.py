@@ -148,7 +148,15 @@ class CollectionService:
                     'condition': condition,
                     'purchase_date': purchase_date,
                     'purchase_source': purchase_source,
-                    'purchase_price': purchase_price
+                    'purchase_price': purchase_price,
+                    # Add fields that the UI template expects
+                    'date': purchase_date,  # UI expects 'date' field
+                    'acquisition_date': purchase_date,  # UI expects 'acquisition_date'
+                    'source_name': purchase_source,  # UI expects 'source_name'
+                    'is_wanted': False,  # This is a purchased game, not wanted
+                    'current_price': None,  # Will be populated by price updates
+                    'is_lent': False,  # Default to not lent
+                    'is_for_sale': False  # Default to not for sale
                 }
                 
                 return response_data

@@ -1277,8 +1277,8 @@
             console.log('🔧 Test functions available: window.testPhase1.runAllTests()');
             console.log('📊 Infrastructure stats available: window.gameStateManager.getStats()');
             
-            // Initialize arrays
-            let allGames = [];
+            // Initialize arrays - make allGames global for optimistic updates
+            window.allGames = [];
             let filteredGames = [];
             let collectionTotals = null;
             const ITEMS_PER_PAGE = 30;
@@ -1301,12 +1301,12 @@
                         throw new Error(`API error: ${response.status}`);
                     }
                     const data = await response.json();
-                    allGames = data.games || data; // Handle both old and new format
+                    window.allGames = data.games || data; // Handle both old and new format
                     collectionTotals = data.totals || null;
-                    filteredGames = [...allGames];
-                    console.log('Loaded games from API:', allGames.length);
+                    filteredGames = [...window.allGames];
+                    console.log('Loaded games from API:', window.allGames.length);
                     console.log('Collection totals:', collectionTotals);
-                    renderGames(allGames, true, 1);
+                    renderGames(window.allGames, true, 1);
                 } catch (error) {
                     console.error('Error loading games:', error);
                     const tbody = document.querySelector('#collectionTable tbody');
@@ -1386,7 +1386,8 @@
             }
             
             // Filter games
-            function filterGames(games, searchTerm) {
+            // Make filterGames global so optimistic updates can use it
+            window.filterGames = function(games, searchTerm) {
                 // Get selected console filters
                 const allConsolesChecked = document.getElementById('consoleAll').checked;
                 const selectedConsoles = [];
@@ -1424,7 +1425,7 @@
                     
                     return matchesSearch && matchesConsole && matchesStatus && matchesCondition;
                 });
-            }
+            }; // End of window.filterGames function
             
             // Get current page of games
             function getCurrentPageGames(games, page) {
@@ -1433,7 +1434,8 @@
             }
             
             // Render games with pagination
-            function renderGames(games, preserveFilteredGames = false, page = 1) {
+            // Make renderGames global so optimistic updates can use it
+            window.renderGames = function(games, preserveFilteredGames = false, page = 1) {
                 console.log('Rendering games:', games.length);
                 const tbody = document.querySelector('#collectionTable tbody');
                 if (!tbody) {
@@ -1776,7 +1778,7 @@
                         });
                     });
                 }
-            }
+            }; // End of window.renderGames function
             
             // Sort games by a specific key
             function sortGames(games, sortKey, sortOrder) {
@@ -1885,7 +1887,7 @@
                     debounceTimeout = setTimeout(() => {
                         const searchTerm = e.target.value;
                         console.log('Filtering with term:', searchTerm);
-                        const filtered = filterGames(allGames, searchTerm);
+                        const filtered = window.filterGames(window.allGames, searchTerm);
                         console.log('Found filtered games:', filtered.length);
                         renderGames(filtered, false, 1); // Reset to first page when filtering
                     }, 300);
@@ -2018,7 +2020,7 @@
             setupTableSearch();
             
             // Populate console filter after loading games
-            populateConsoleFilter(allGames);
+            populateConsoleFilter(window.allGames);
             
             // Setup advanced search toggle
             const advancedSearchBtn = document.getElementById('advancedSearchBtn');
@@ -2033,7 +2035,7 @@
             // Add event listeners for advanced filters
             const applyFilters = () => {
                 const searchTerm = document.getElementById('searchInput').value;
-                const filtered = filterGames(allGames, searchTerm);
+                const filtered = window.filterGames(window.allGames, searchTerm);
                 
                 // Calculate totals for filtered results
                 let totalAcquisition = 0;
