@@ -10,11 +10,15 @@ from app.price_retrieval import update_game_prices, get_last_price_update
 
 main = Blueprint('main', __name__)
 
-db_path = Path(__file__).parent.parent / "games.db"
+def get_db_path():
+    """Get database path from app config or fallback to default"""
+    if current_app:
+        return current_app.config.get('DATABASE_PATH', Path(__file__).parent.parent / "games.db")
+    return Path(__file__).parent.parent / "games.db"
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(get_db_path())
     try:
         yield conn
     finally:
@@ -271,7 +275,7 @@ def add_to_wishlist():
         condition = data.get('condition', 'complete')
         
         current_app.logger.info(f"Adding game to wishlist with URL: {url}, condition: {condition}")
-        wishlist_service = WishlistService(db_path)
+        wishlist_service = WishlistService(get_db_path())
         result = wishlist_service.add_game_to_wishlist(url, condition)
         
         current_app.logger.info(f"Successfully added game to wishlist: {result}")
@@ -313,7 +317,7 @@ def add_to_collection():
         current_app.logger.info(f"Adding game to collection with URL: {url}, condition: {condition}, " +
                               f"date: {purchase_date}, source: {purchase_source}, price: {purchase_price}")
         
-        collection_service = CollectionService(db_path)
+        collection_service = CollectionService(get_db_path())
         result = collection_service.add_game_to_collection(
             url, 
             purchase_date=purchase_date,
@@ -429,7 +433,7 @@ def update_game_price(game_id):
 def get_game_last_price_update(game_id):
     """Get the date of the last price update for a specific game."""
     try:
-        last_update = get_last_price_update(game_id, str(db_path))
+        last_update = get_last_price_update(game_id, str(get_db_path()))
         return jsonify({
             "success": True,
             "last_update": last_update

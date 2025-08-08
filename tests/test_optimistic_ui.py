@@ -15,15 +15,15 @@ import os
 def app():
     """Create application for testing"""
     # Create a temporary database file
-    db_fd, db_path = tempfile.mkstemp()
+    db_fd, db_path = tempfile.mkstemp(suffix='.db')
     
     app = create_app()
     app.config['TESTING'] = True
-    app.config['DATABASE'] = db_path
+    app.config['DATABASE_PATH'] = db_path
     
-    # Initialize the database with schema
+    # Initialize the database with production schema
     with app.app_context():
-        init_db(db_path)
+        init_test_db()
     
     yield app
     
@@ -32,60 +32,37 @@ def app():
     os.unlink(db_path)
 
 
+def init_test_db():
+    """Initialize test database using production schema"""
+    from app.routes import get_db_path
+    import sqlite3
+    
+    schema_path = Path(__file__).parent.parent / "test_schema.sql"
+    
+    # Connect to the in-memory database
+    conn = sqlite3.connect(get_db_path())
+    
+    try:
+        # Execute the schema SQL
+        with open(schema_path, 'r') as f:
+            schema_sql = f.read()
+        
+        # Execute each statement (split by semicolons, filter empty)
+        statements = [stmt.strip() for stmt in schema_sql.split(';') if stmt.strip()]
+        for statement in statements:
+            conn.execute(statement)
+        
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @pytest.fixture
 def client(app):
     """Create a test client for the app"""
     return app.test_client()
 
 
-def init_db(db_path):
-    """Initialize test database with schema"""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Create tables
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS wishlist (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            console TEXT NOT NULL,
-            url TEXT,
-            current_price REAL,
-            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            condition TEXT DEFAULT 'CIB'
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS purchased_games (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            game_id INTEGER,
-            name TEXT NOT NULL,
-            console TEXT NOT NULL,
-            url TEXT,
-            purchase_date DATE,
-            purchase_price REAL,
-            purchase_source TEXT,
-            current_price REAL,
-            condition TEXT DEFAULT 'CIB',
-            is_for_sale BOOLEAN DEFAULT 0,
-            is_lent_out BOOLEAN DEFAULT 0,
-            acquisition_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS games_for_sale (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            purchased_game_id INTEGER UNIQUE,
-            asking_price REAL,
-            date_marked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (purchased_game_id) REFERENCES purchased_games(id)
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
 
 
 class TestAddGameOptimistic:
