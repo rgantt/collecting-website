@@ -8,7 +8,8 @@
       "Bash(python -m pytest tests/test_optimistic_ui.py -v --tb=short)",
       "Bash(python -m pytest tests/test_optimistic_ui.py::TestLentStatusOperations -v)",
       "Bash(python3 -m pytest tests/test_optimistic_ui.py::TestLentStatusOperations -v)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(open tests/test_loading_states.html)"
     ],
     "deny": []
   }

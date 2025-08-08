@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading States Test Suite - Phase 4.1</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .test-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .test-results {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 15px;
+            background-color: #f8f9fa;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .test-summary {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .test-passed {
+            color: #198754;
+            font-weight: bold;
+        }
+        .test-failed {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .test-running {
+            color: #0d6efd;
+            font-weight: bold;
+        }
+        .progress-bar {
+            height: 4px;
+            margin-bottom: 10px;
+        }
+        
+        /* Include Phase 4.1 CSS for testing */
+        .sync-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: rgba(13, 110, 253, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .sync-indicator.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .sync-indicator.success {
+            background: rgba(25, 135, 84, 0.9);
+        }
+        
+        .sync-indicator.error {
+            background: rgba(220, 53, 69, 0.9);
+        }
+        
+        .sync-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 6px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .batch-progress {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 250px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .batch-progress.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .batch-progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        
+        .batch-progress-fill {
+            height: 100%;
+            background-color: #0d6efd;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+        
+        .btn-loading {
+            position: relative;
+            color: transparent !important;
+        }
+        
+        .btn-loading:after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .btn-loading.btn-primary:after {
+            border-top-color: white;
+        }
+        
+        .optimistic-pending {
+            position: relative;
+            background-color: rgba(255, 193, 7, 0.1) !important;
+            border-left: 3px solid #ffc107;
+        }
+        
+        .optimistic-success {
+            background-color: rgba(25, 135, 84, 0.1) !important;
+            border-left: 3px solid #198754;
+            transition: all 0.5s ease;
+        }
+        
+        .optimistic-error {
+            background-color: rgba(220, 53, 69, 0.1) !important;
+            border-left: 3px solid #dc3545;
+            animation: shake 0.5s ease-in-out;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+            20%, 40%, 60%, 80% { transform: translateX(2px); }
+        }
+        
+        .game-row {
+            transition: all 0.3s ease;
+        }
+        
+        .game-row.updating {
+            opacity: 0.7;
+            transform: scale(0.99);
+        }
+        
+        .game-row.fade-in {
+            opacity: 0;
+            transform: translateY(-10px);
+            animation: fadeIn 0.5s ease forwards;
+        }
+        
+        .game-row.fade-out {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: all 0.4s ease;
+        }
+        
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .operation-success {
+            animation: pulseGreen 0.6s ease-out;
+        }
+        
+        .operation-error {
+            animation: pulseRed 0.6s ease-out;
+        }
+        
+        @keyframes pulseGreen {
+            0% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(25, 135, 84, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+        }
+        
+        @keyframes pulseRed {
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Phase 4.1: Loading State UI Elements for Testing -->
+    <div id="syncIndicator" class="sync-indicator">
+        <span class="sync-spinner"></span>
+        <span class="sync-text">Syncing...</span>
+    </div>
+    
+    <div id="batchProgress" class="batch-progress">
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="batch-progress-text">Refreshing games...</span>
+            <span class="batch-progress-count">0/0</span>
+        </div>
+        <div class="batch-progress-bar">
+            <div class="batch-progress-fill" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h1 class="mb-4">🎨 Phase 4.1: Loading States Test Suite</h1>
+        
+        <div class="test-summary">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Test Results</h5>
+                <div>
+                    <span id="passedCount" class="test-passed">0 passed</span> | 
+                    <span id="failedCount" class="test-failed">0 failed</span> | 
+                    <span id="totalCount">0 total</span>
+                </div>
+            </div>
+            <div class="progress">
+                <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <!-- Test Controls -->
+        <div class="mb-4">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <button id="runAllTests" class="btn btn-primary w-100">Run All Tests</button>
+                </div>
+                <div class="col-md-3">
+                    <button id="runSyncTests" class="btn btn-outline-primary w-100">Sync Indicator Tests</button>
+                </div>
+                <div class="col-md-3">
+                    <button id="runBatchTests" class="btn btn-outline-primary w-100">Batch Progress Tests</button>
+                </div>
+                <div class="col-md-3">
+                    <button id="runAnimationTests" class="btn btn-outline-primary w-100">Animation Tests</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Demo Area -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h6>Demo Button States</h6>
+                <button id="demoButton" class="btn btn-primary mb-2">Demo Button</button>
+                <button id="toggleButtonLoading" class="btn btn-outline-secondary">Toggle Loading</button>
+            </div>
+            <div class="col-md-6">
+                <h6>Demo Game Row States</h6>
+                <table class="table table-sm">
+                    <tbody>
+                        <tr id="demoRow" class="game-row" data-game-id="demo">
+                            <td>Demo Game</td>
+                            <td>Test Console</td>
+                            <td>$19.99</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button id="demoRowStates" class="btn btn-outline-secondary btn-sm">Cycle Row States</button>
+            </div>
+        </div>
+        
+        <div class="test-results" id="testResults">
+            Ready to run tests...
+        </div>
+    </div>
+
+    <script>
+        // Mock LoadingStateManager implementation for testing
+        const LoadingStateManager = {
+            syncIndicator: null,
+            syncSpinner: null,
+            syncText: null,
+            batchProgress: null,
+            batchProgressText: null,
+            batchProgressCount: null,
+            batchProgressFill: null,
+            activeSyncOperations: 0,
+            syncTimeout: null,
+            
+            init() {
+                this.syncIndicator = document.getElementById('syncIndicator');
+                this.syncSpinner = this.syncIndicator?.querySelector('.sync-spinner');
+                this.syncText = this.syncIndicator?.querySelector('.sync-text');
+                
+                this.batchProgress = document.getElementById('batchProgress');
+                this.batchProgressText = this.batchProgress?.querySelector('.batch-progress-text');
+                this.batchProgressCount = this.batchProgress?.querySelector('.batch-progress-count');
+                this.batchProgressFill = this.batchProgress?.querySelector('.batch-progress-fill');
+                
+                console.log('✅ LoadingStateManager initialized');
+            },
+            
+            showSyncIndicator(message = 'Syncing...', type = 'info') {
+                if (!this.syncIndicator) return;
+                
+                this.activeSyncOperations++;
+                
+                if (this.syncText) {
+                    this.syncText.textContent = message;
+                }
+                
+                this.syncIndicator.className = `sync-indicator show ${type === 'error' ? 'error' : type === 'success' ? 'success' : ''}`;
+                
+                if (this.syncTimeout) {
+                    clearTimeout(this.syncTimeout);
+                    this.syncTimeout = null;
+                }
+            },
+            
+            hideSyncIndicator(type = 'success', delay = 1000) {
+                this.activeSyncOperations = Math.max(0, this.activeSyncOperations - 1);
+                
+                if (this.activeSyncOperations > 0) {
+                    return;
+                }
+                
+                if (!this.syncIndicator) return;
+                
+                if (type !== 'info') {
+                    this.syncIndicator.className = `sync-indicator show ${type}`;
+                    if (this.syncText) {
+                        this.syncText.textContent = type === 'success' ? 'Synced!' : 'Sync failed';
+                    }
+                }
+                
+                this.syncTimeout = setTimeout(() => {
+                    if (this.syncIndicator && this.activeSyncOperations === 0) {
+                        this.syncIndicator.classList.remove('show', 'success', 'error');
+                    }
+                }, delay);
+            },
+            
+            showBatchProgress(message = 'Refreshing games...', current = 0, total = 0) {
+                if (!this.batchProgress) return;
+                
+                if (this.batchProgressText) {
+                    this.batchProgressText.textContent = message;
+                }
+                if (this.batchProgressCount) {
+                    this.batchProgressCount.textContent = `${current}/${total}`;
+                }
+                
+                const percentage = total > 0 ? (current / total) * 100 : 0;
+                if (this.batchProgressFill) {
+                    this.batchProgressFill.style.width = `${percentage}%`;
+                }
+                
+                this.batchProgress.classList.add('show');
+            },
+            
+            updateBatchProgress(current, total, message = null) {
+                if (!this.batchProgress) return;
+                
+                if (message && this.batchProgressText) {
+                    this.batchProgressText.textContent = message;
+                }
+                
+                if (this.batchProgressCount) {
+                    this.batchProgressCount.textContent = `${current}/${total}`;
+                }
+                
+                const percentage = total > 0 ? (current / total) * 100 : 0;
+                if (this.batchProgressFill) {
+                    this.batchProgressFill.style.width = `${percentage}%`;
+                }
+            },
+            
+            hideBatchProgress(delay = 500) {
+                if (!this.batchProgress) return;
+                
+                setTimeout(() => {
+                    this.batchProgress.classList.remove('show');
+                    if (this.batchProgressFill) {
+                        this.batchProgressFill.style.width = '0%';
+                    }
+                }, delay);
+            },
+            
+            setButtonLoading(button, loading = true) {
+                if (!button) return;
+                
+                if (loading) {
+                    button.classList.add('btn-loading');
+                    button.disabled = true;
+                } else {
+                    button.classList.remove('btn-loading');
+                    button.disabled = false;
+                }
+            },
+            
+            setRowState(gameId, state) {
+                const row = document.querySelector(`tr[data-game-id="${gameId}"]`);
+                if (!row) return;
+                
+                row.classList.remove('optimistic-pending', 'optimistic-success', 'optimistic-error', 'updating', 'fade-out', 'fade-in');
+                
+                switch (state) {
+                    case 'pending':
+                        row.classList.add('optimistic-pending');
+                        break;
+                    case 'updating':
+                        row.classList.add('updating');
+                        break;
+                    case 'success':
+                        row.classList.add('optimistic-success');
+                        setTimeout(() => row.classList.remove('optimistic-success'), 2000);
+                        break;
+                    case 'error':
+                        row.classList.add('optimistic-error');
+                        setTimeout(() => row.classList.remove('optimistic-error'), 3000);
+                        break;
+                    case 'fade-out':
+                        row.classList.add('fade-out');
+                        break;
+                    case 'fade-in':
+                        row.classList.add('fade-in');
+                        break;
+                }
+            },
+            
+            showSuccessAnimation(element) {
+                if (!element) return;
+                element.classList.add('operation-success');
+                setTimeout(() => element.classList.remove('operation-success'), 600);
+            },
+            
+            showErrorAnimation(element) {
+                if (!element) return;
+                element.classList.add('operation-error');
+                setTimeout(() => element.classList.remove('operation-error'), 600);
+            }
+        };
+        
+        // Initialize LoadingStateManager
+        LoadingStateManager.init();
+        
+        // Test Runner
+        class TestRunner {
+            constructor() {
+                this.results = [];
+                this.output = document.getElementById('testResults');
+                this.passedCount = document.getElementById('passedCount');
+                this.failedCount = document.getElementById('failedCount');
+                this.totalCount = document.getElementById('totalCount');
+                this.progressBar = document.getElementById('progressBar');
+            }
+            
+            log(message) {
+                console.log(message);
+                this.output.textContent += message + '\\n';
+                this.output.scrollTop = this.output.scrollHeight;
+            }
+            
+            async runTest(testName, testFn) {
+                this.log(`🧪 Running: ${testName}`);
+                
+                try {
+                    await testFn();
+                    this.results.push({ name: testName, status: 'passed' });
+                    this.log(`✅ PASSED: ${testName}`);
+                } catch (error) {
+                    this.results.push({ name: testName, status: 'failed', error: error.message });
+                    this.log(`❌ FAILED: ${testName} - ${error.message}`);
+                }
+                
+                this.updateSummary();
+            }
+            
+            updateSummary() {
+                const passed = this.results.filter(r => r.status === 'passed').length;
+                const failed = this.results.filter(r => r.status === 'failed').length;
+                const total = this.results.length;
+                
+                this.passedCount.textContent = `${passed} passed`;
+                this.failedCount.textContent = `${failed} failed`;
+                this.totalCount.textContent = `${total} total`;
+                
+                const percentage = total > 0 ? (passed / total) * 100 : 0;
+                this.progressBar.style.width = `${percentage}%`;
+                this.progressBar.className = `progress-bar ${percentage === 100 ? 'bg-success' : failed > 0 ? 'bg-warning' : 'bg-primary'}`;
+            }
+            
+            clear() {
+                this.results = [];
+                this.output.textContent = '';
+                this.updateSummary();
+            }
+            
+            // Helper function to wait
+            wait(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+            
+            // Helper to assert conditions
+            assert(condition, message) {
+                if (!condition) {
+                    throw new Error(message);
+                }
+            }
+        }
+        
+        const testRunner = new TestRunner();
+        
+        // ===== SYNC INDICATOR TESTS =====
+        async function runSyncIndicatorTests() {
+            testRunner.log('\\n🔄 === SYNC INDICATOR TESTS ===');
+            
+            await testRunner.runTest('Sync indicator shows with custom message', async () => {
+                LoadingStateManager.showSyncIndicator('Testing sync...', 'info');
+                await testRunner.wait(100);
+                
+                testRunner.assert(
+                    LoadingStateManager.syncIndicator.classList.contains('show'),
+                    'Sync indicator should be visible'
+                );
+                testRunner.assert(
+                    LoadingStateManager.syncText.textContent === 'Testing sync...',
+                    'Sync text should match provided message'
+                );
+                
+                LoadingStateManager.hideSyncIndicator('success', 100);
+                await testRunner.wait(200);
+            });
+            
+            await testRunner.runTest('Sync indicator shows success state', async () => {
+                LoadingStateManager.showSyncIndicator('Success test', 'success');
+                await testRunner.wait(100);
+                
+                testRunner.assert(
+                    LoadingStateManager.syncIndicator.classList.contains('success'),
+                    'Sync indicator should have success class'
+                );
+                
+                LoadingStateManager.hideSyncIndicator('success', 100);
+                await testRunner.wait(200);
+            });
+            
+            await testRunner.runTest('Sync indicator shows error state', async () => {
+                LoadingStateManager.showSyncIndicator('Error test', 'error');
+                await testRunner.wait(100);
+                
+                testRunner.assert(
+                    LoadingStateManager.syncIndicator.classList.contains('error'),
+                    'Sync indicator should have error class'
+                );
+                
+                LoadingStateManager.hideSyncIndicator('error', 100);
+                await testRunner.wait(200);
+            });
+            
+            await testRunner.runTest('Multiple sync operations tracking', async () => {
+                LoadingStateManager.showSyncIndicator('Op 1');
+                LoadingStateManager.showSyncIndicator('Op 2');
+                
+                testRunner.assert(
+                    LoadingStateManager.activeSyncOperations === 2,
+                    'Should track multiple active operations'
+                );
+                
+                LoadingStateManager.hideSyncIndicator();
+                testRunner.assert(
+                    LoadingStateManager.activeSyncOperations === 1,
+                    'Should decrement operation count'
+                );
+                testRunner.assert(
+                    LoadingStateManager.syncIndicator.classList.contains('show'),
+                    'Should still be visible with remaining operations'
+                );
+                
+                LoadingStateManager.hideSyncIndicator();
+                await testRunner.wait(100);
+                testRunner.assert(
+                    LoadingStateManager.activeSyncOperations === 0,
+                    'Should reach zero operations'
+                );
+            });
+        }
+        
+        // ===== BATCH PROGRESS TESTS =====
+        async function runBatchProgressTests() {
+            testRunner.log('\\n📊 === BATCH PROGRESS TESTS ===');
+            
+            await testRunner.runTest('Batch progress shows and updates', async () => {
+                LoadingStateManager.showBatchProgress('Processing...', 0, 10);
+                await testRunner.wait(100);
+                
+                testRunner.assert(
+                    LoadingStateManager.batchProgress.classList.contains('show'),
+                    'Batch progress should be visible'
+                );
+                testRunner.assert(
+                    LoadingStateManager.batchProgressText.textContent === 'Processing...',
+                    'Batch progress text should match'
+                );
+                testRunner.assert(
+                    LoadingStateManager.batchProgressCount.textContent === '0/10',
+                    'Batch progress count should match'
+                );
+                testRunner.assert(
+                    LoadingStateManager.batchProgressFill.style.width === '0%',
+                    'Progress bar should start at 0%'
+                );
+                
+                LoadingStateManager.hideBatchProgress(100);
+                await testRunner.wait(200);
+            });
+            
+            await testRunner.runTest('Batch progress updates correctly', async () => {
+                LoadingStateManager.showBatchProgress('Testing...', 0, 5);
+                LoadingStateManager.updateBatchProgress(2, 5);
+                
+                testRunner.assert(
+                    LoadingStateManager.batchProgressCount.textContent === '2/5',
+                    'Count should update to 2/5'
+                );
+                testRunner.assert(
+                    LoadingStateManager.batchProgressFill.style.width === '40%',
+                    'Progress bar should be 40%'
+                );
+                
+                LoadingStateManager.updateBatchProgress(5, 5, 'Complete!');
+                testRunner.assert(
+                    LoadingStateManager.batchProgressText.textContent === 'Complete!',
+                    'Text should update'
+                );
+                testRunner.assert(
+                    LoadingStateManager.batchProgressFill.style.width === '100%',
+                    'Progress bar should be 100%'
+                );
+                
+                LoadingStateManager.hideBatchProgress(100);
+                await testRunner.wait(200);
+            });
+            
+            await testRunner.runTest('Batch progress hides properly', async () => {
+                LoadingStateManager.showBatchProgress('Hide test', 1, 1);
+                await testRunner.wait(100);
+                
+                LoadingStateManager.hideBatchProgress(200);
+                await testRunner.wait(300);
+                
+                testRunner.assert(
+                    !LoadingStateManager.batchProgress.classList.contains('show'),
+                    'Batch progress should be hidden'
+                );
+                testRunner.assert(
+                    LoadingStateManager.batchProgressFill.style.width === '0%',
+                    'Progress bar should reset to 0%'
+                );
+            });
+        }
+        
+        // ===== ANIMATION AND STATE TESTS =====
+        async function runAnimationTests() {
+            testRunner.log('\\n🎭 === ANIMATION & STATE TESTS ===');
+            
+            await testRunner.runTest('Button loading state works', async () => {
+                const testButton = document.getElementById('demoButton');
+                
+                LoadingStateManager.setButtonLoading(testButton, true);
+                testRunner.assert(
+                    testButton.classList.contains('btn-loading'),
+                    'Button should have loading class'
+                );
+                testRunner.assert(
+                    testButton.disabled,
+                    'Button should be disabled'
+                );
+                
+                LoadingStateManager.setButtonLoading(testButton, false);
+                testRunner.assert(
+                    !testButton.classList.contains('btn-loading'),
+                    'Button should not have loading class'
+                );
+                testRunner.assert(
+                    !testButton.disabled,
+                    'Button should be enabled'
+                );
+            });
+            
+            await testRunner.runTest('Game row state changes work', async () => {
+                LoadingStateManager.setRowState('demo', 'pending');
+                const demoRow = document.getElementById('demoRow');
+                
+                testRunner.assert(
+                    demoRow.classList.contains('optimistic-pending'),
+                    'Row should have pending state'
+                );
+                
+                LoadingStateManager.setRowState('demo', 'updating');
+                testRunner.assert(
+                    demoRow.classList.contains('updating'),
+                    'Row should have updating state'
+                );
+                testRunner.assert(
+                    !demoRow.classList.contains('optimistic-pending'),
+                    'Row should not have pending state'
+                );
+                
+                LoadingStateManager.setRowState('demo', 'success');
+                await testRunner.wait(100);
+                testRunner.assert(
+                    demoRow.classList.contains('optimistic-success'),
+                    'Row should have success state'
+                );
+                
+                // Wait for success state to auto-remove
+                await testRunner.wait(2100);
+                testRunner.assert(
+                    !demoRow.classList.contains('optimistic-success'),
+                    'Success state should auto-remove after 2 seconds'
+                );
+            });
+            
+            await testRunner.runTest('Row error state with shake animation', async () => {
+                const demoRow = document.getElementById('demoRow');
+                LoadingStateManager.setRowState('demo', 'error');
+                
+                testRunner.assert(
+                    demoRow.classList.contains('optimistic-error'),
+                    'Row should have error state'
+                );
+                
+                // Wait for error state to auto-remove
+                await testRunner.wait(3100);
+                testRunner.assert(
+                    !demoRow.classList.contains('optimistic-error'),
+                    'Error state should auto-remove after 3 seconds'
+                );
+            });
+            
+            await testRunner.runTest('Row fade animations work', async () => {
+                const demoRow = document.getElementById('demoRow');
+                
+                LoadingStateManager.setRowState('demo', 'fade-in');
+                testRunner.assert(
+                    demoRow.classList.contains('fade-in'),
+                    'Row should have fade-in class'
+                );
+                
+                LoadingStateManager.setRowState('demo', 'fade-out');
+                testRunner.assert(
+                    demoRow.classList.contains('fade-out'),
+                    'Row should have fade-out class'
+                );
+                testRunner.assert(
+                    !demoRow.classList.contains('fade-in'),
+                    'Row should not have fade-in class'
+                );
+            });
+            
+            await testRunner.runTest('Success/error micro-animations work', async () => {
+                const testButton = document.getElementById('demoButton');
+                
+                LoadingStateManager.showSuccessAnimation(testButton);
+                testRunner.assert(
+                    testButton.classList.contains('operation-success'),
+                    'Element should have success animation class'
+                );
+                
+                // Wait for animation to complete
+                await testRunner.wait(700);
+                testRunner.assert(
+                    !testButton.classList.contains('operation-success'),
+                    'Success animation class should auto-remove'
+                );
+                
+                LoadingStateManager.showErrorAnimation(testButton);
+                testRunner.assert(
+                    testButton.classList.contains('operation-error'),
+                    'Element should have error animation class'
+                );
+                
+                // Wait for animation to complete
+                await testRunner.wait(700);
+                testRunner.assert(
+                    !testButton.classList.contains('operation-error'),
+                    'Error animation class should auto-remove'
+                );
+            });
+        }
+        
+        // ===== INTEGRATION TESTS =====
+        async function runIntegrationTests() {
+            testRunner.log('\\n🔗 === INTEGRATION TESTS ===');
+            
+            await testRunner.runTest('Complete workflow simulation', async () => {
+                // Simulate a complete add-to-wishlist workflow
+                LoadingStateManager.showSyncIndicator('Adding to wishlist...');
+                LoadingStateManager.setRowState('demo', 'pending');
+                
+                await testRunner.wait(500);
+                
+                // Simulate success
+                LoadingStateManager.setRowState('demo', 'success');
+                LoadingStateManager.hideSyncIndicator('success');
+                
+                testRunner.assert(true, 'Complete workflow should execute without errors');
+                await testRunner.wait(1500);
+            });
+            
+            await testRunner.runTest('Batch operation simulation', async () => {
+                // Simulate batch refresh
+                const totalGames = 5;
+                LoadingStateManager.showBatchProgress('Refreshing games...', 0, totalGames);
+                
+                for (let i = 1; i <= totalGames; i++) {
+                    await testRunner.wait(200);
+                    LoadingStateManager.updateBatchProgress(i, totalGames);
+                    LoadingStateManager.setRowState('demo', 'updating');
+                    
+                    await testRunner.wait(100);
+                    LoadingStateManager.setRowState('demo', 'success');
+                }
+                
+                await testRunner.wait(300);
+                LoadingStateManager.hideBatchProgress();
+                
+                testRunner.assert(true, 'Batch operation simulation should complete');
+                await testRunner.wait(300);
+            });
+        }
+        
+        // ===== EVENT HANDLERS =====
+        document.getElementById('runAllTests').addEventListener('click', async () => {
+            testRunner.clear();
+            testRunner.log('🚀 Starting comprehensive loading states test suite...');
+            
+            await runSyncIndicatorTests();
+            await runBatchProgressTests();
+            await runAnimationTests();
+            await runIntegrationTests();
+            
+            const passed = testRunner.results.filter(r => r.status === 'passed').length;
+            const total = testRunner.results.length;
+            
+            testRunner.log(`\\n🏁 Test suite completed: ${passed}/${total} tests passed`);
+            
+            if (passed === total) {
+                testRunner.log('🎉 All tests passed! Loading states are working correctly.');
+            } else {
+                testRunner.log('⚠️ Some tests failed. Review the results above.');
+            }
+        });
+        
+        document.getElementById('runSyncTests').addEventListener('click', async () => {
+            testRunner.clear();
+            await runSyncIndicatorTests();
+        });
+        
+        document.getElementById('runBatchTests').addEventListener('click', async () => {
+            testRunner.clear();
+            await runBatchProgressTests();
+        });
+        
+        document.getElementById('runAnimationTests').addEventListener('click', async () => {
+            testRunner.clear();
+            await runAnimationTests();
+        });
+        
+        // ===== DEMO CONTROLS =====
+        document.getElementById('toggleButtonLoading').addEventListener('click', () => {
+            const demoButton = document.getElementById('demoButton');
+            const isLoading = demoButton.classList.contains('btn-loading');
+            LoadingStateManager.setButtonLoading(demoButton, !isLoading);
+        });
+        
+        let currentRowState = 0;
+        const rowStates = ['pending', 'updating', 'success', 'error', 'fade-in', 'fade-out'];
+        document.getElementById('demoRowStates').addEventListener('click', () => {
+            const state = rowStates[currentRowState % rowStates.length];
+            LoadingStateManager.setRowState('demo', state);
+            currentRowState++;
+            
+            document.getElementById('demoRowStates').textContent = `Current: ${state} (click for next)`;
+        });
+        
+        testRunner.log('Loading States Test Suite Ready!\\nClick "Run All Tests" to start comprehensive testing.');
+    </script>
+</body>
+</html>

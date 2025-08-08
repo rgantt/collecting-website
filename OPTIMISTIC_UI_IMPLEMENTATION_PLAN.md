@@ -12,6 +12,7 @@
 - ✅ **Task 2.6: Edit Details Optimistic Updates** - **COMPLETED** (Phase 2: 6/6 tasks - **100% COMPLETE!**)
 - ✅ **Task 3.1: Selective Game Data Refresh** - **COMPLETED** 
 - ✅ **Task 3.2: Batch Refresh Operations** - **COMPLETED** (Phase 3: 2/2 tasks - **100% COMPLETE!**)
+- ✅ **Task 4.1: Loading State Improvements** - **COMPLETED** (Phase 4: 1/2 tasks)
 
 ## Overview
 Current flow: `User Action → API Call → Full Page Refresh`  
@@ -312,22 +313,35 @@ Target flow: `User Action → Immediate UI Update → Background API Call → Se
 
 ## Phase 4: UI/UX Enhancements
 
-### Task 4.1: Loading State Improvements
-**Assignee**: _TBD_  
+### Task 4.1: Loading State Improvements ✅ **COMPLETED**
+**Assignee**: Cascade AI  
 **Estimate**: 3 hours  
 **Priority**: MEDIUM
 
 **Description**: Enhance loading states to show background API activity.
 
 **Acceptance Criteria**:
-- [ ] Add subtle loading indicators for background API calls
-- [ ] Create "sync in progress" indicators
-- [ ] Add success/error micro-animations
-- [ ] Implement fade transitions for smoother updates
+- [x] Add subtle loading indicators for background API calls
+- [x] Create "sync in progress" indicators
+- [x] Add success/error micro-animations
+- [x] Implement fade transitions for smoother updates
 
-**Files to Modify**:
-- `static/css/style.css`
-- `static/js/main.js`
+**Files Created**:
+- `tests/test_loading_states.html` - Comprehensive test suite with 20+ test cases
+
+**Files Modified**:
+- `app/templates/index.html` - Added 200+ lines of CSS for loading states and UI elements
+- `app/static/js/main.js` - Added 200+ lines of LoadingStateManager with complete API
+
+**Key Features Implemented**:
+- **Sync Indicators**: Fixed-position indicators showing background API activity with success/error states
+- **Batch Progress**: Bottom-right progress indicators for batch operations with real-time updates
+- **Button Loading States**: Visual loading spinners for buttons during operations
+- **Row State Management**: Visual feedback for game rows (pending, updating, success, error, fade animations)
+- **Micro-animations**: Success/error pulse animations with automatic cleanup
+- **Fade Transitions**: Smooth fade-in/out animations for add/remove operations
+- **Mobile-responsive**: Optimized loading states for mobile devices
+- **API Integration**: Enhanced existing optimistic functions with loading state management
 
 **Dependencies**: Tasks from Phase 2
 

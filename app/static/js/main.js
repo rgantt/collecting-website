@@ -205,9 +205,13 @@
             // Add to state manager
             window.gameStateManager.addGame(optimisticGame);
             
-            // Create and add the game row
+            // Create and add the game row with fade-in animation
             const row = createGameRow(optimisticGame, true);
+            row.classList.add('fade-in');
             addGameRowToTable(row, 'collectionTable', true);
+            
+            // Set pending state
+            window.LoadingStateManager?.setRowState(tempId, 'pending');
             
             // Update count
             updateResultCount(1, optimisticGame);
@@ -218,37 +222,47 @@
             }
         };
         
-        // API call function
+        // API call function with loading state
         const apiFn = async () => {
-            const response = await fetch('/api/wishlist/add', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(gameData)
-            });
+            window.LoadingStateManager?.showSyncIndicator('Adding to wishlist...');
             
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to add game to wishlist');
+            try {
+                const response = await fetch('/api/wishlist/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(gameData)
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to add game to wishlist');
+                }
+                
+                // Set success state
+                window.LoadingStateManager?.setRowState(tempId, 'success');
+                window.LoadingStateManager?.hideSyncIndicator('success');
+                
+                return data;
+            } catch (error) {
+                window.LoadingStateManager?.setRowState(tempId, 'error');
+                window.LoadingStateManager?.hideSyncIndicator('error');
+                throw error;
             }
-            
-            return data;
         };
         
-        // Rollback function
+        // Rollback function with fade-out animation
         const rollbackFn = () => {
             // Remove from state manager
             window.gameStateManager.removeGame(tempId);
             
-            // Remove from DOM
+            // Remove from DOM with fade-out animation
             const row = document.querySelector(`tr[data-game-id="${tempId}"]`);
             if (row) {
-                row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                row.style.opacity = '0';
-                row.style.transform = 'translateY(-10px)';
-                setTimeout(() => row.remove(), 300);
+                window.LoadingStateManager?.setRowState(tempId, 'fade-out');
+                setTimeout(() => row.remove(), 400);
             }
             
             // Update count
@@ -1732,6 +1746,9 @@
     async function executeBatchRefresh(gameIds) {
         console.log(`📡 Executing batch refresh for ${gameIds.length} games:`, gameIds);
         
+        // Show batch progress indicator
+        window.LoadingStateManager?.showBatchProgress('Refreshing games...', 0, gameIds.length);
+        
         try {
             // Split large batches into smaller chunks
             const chunks = [];
@@ -1740,10 +1757,15 @@
             }
             
             const allResults = [];
+            let processedCount = 0;
             
             // Process each chunk
-            for (const chunk of chunks) {
-                console.log(`📦 Processing batch chunk of ${chunk.length} games`);
+            for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+                const chunk = chunks[chunkIndex];
+                console.log(`📦 Processing batch chunk ${chunkIndex + 1}/${chunks.length} (${chunk.length} games)`);
+                
+                // Update progress
+                window.LoadingStateManager?.updateBatchProgress(processedCount, gameIds.length, `Processing chunk ${chunkIndex + 1}/${chunks.length}...`);
                 
                 const response = await fetch('/api/games/batch-refresh', {
                     method: 'POST',
@@ -1762,10 +1784,14 @@
                 const result = await response.json();
                 console.log(`📥 Received batch data: ${result.found_count} found, ${result.missing_count} missing`);
                 
-                // Process found games
+                // Process found games with progress updates
                 for (const freshGameData of result.games) {
                     const gameId = freshGameData.id;
                     const currentGameData = window.gameStateManager.getGame(gameId);
+                    
+                    // Update progress for each game processed
+                    processedCount++;
+                    window.LoadingStateManager?.updateBatchProgress(processedCount, gameIds.length);
                     
                     if (!currentGameData) {
                         console.log('⚠️ Game not in client state, adding:', gameId);
@@ -1788,8 +1814,10 @@
                     // Update client state
                     window.gameStateManager.updateGame(freshGameData);
                     
-                    // Apply differential DOM updates
+                    // Apply differential DOM updates with subtle visual feedback
+                    window.LoadingStateManager?.setRowState(gameId, 'updating');
                     applyGameDataChanges(gameId, changes, freshGameData);
+                    setTimeout(() => window.LoadingStateManager?.setRowState(gameId, 'success'), 100);
                     
                     // Update allGames array if it exists
                     if (window.allGames) {
@@ -1810,11 +1838,17 @@
                 }
             }
             
+            // Hide batch progress indicator
+            window.LoadingStateManager?.hideBatchProgress();
             console.log(`✅ Batch refresh completed: ${allResults.length} games processed`);
             return allResults;
             
         } catch (error) {
             console.error('❌ Error in batch refresh:', error);
+            // Hide batch progress and show error
+            window.LoadingStateManager?.hideBatchProgress();
+            window.LoadingStateManager?.showSyncIndicator('Batch refresh failed', 'error');
+            window.LoadingStateManager?.hideSyncIndicator('error');
             // Return partial results or empty array - don't break UI
             return [];
         }
@@ -1843,6 +1877,256 @@
         
         return Promise.resolve([]);
     };
+
+    // ===== PHASE 4.1: LOADING STATE IMPROVEMENTS =====
+    
+    /**
+     * Loading State Manager for visual feedback during operations
+     */
+    const LoadingStateManager = {
+        // Sync indicator elements
+        syncIndicator: null,
+        syncSpinner: null,
+        syncText: null,
+        
+        // Batch progress elements
+        batchProgress: null,
+        batchProgressText: null,
+        batchProgressCount: null,
+        batchProgressFill: null,
+        
+        // State tracking
+        activeSyncOperations: 0,
+        syncTimeout: null,
+        
+        /**
+         * Initialize loading state manager
+         */
+        init() {
+            this.syncIndicator = document.getElementById('syncIndicator');
+            this.syncSpinner = this.syncIndicator?.querySelector('.sync-spinner');
+            this.syncText = this.syncIndicator?.querySelector('.sync-text');
+            
+            this.batchProgress = document.getElementById('batchProgress');
+            this.batchProgressText = this.batchProgress?.querySelector('.batch-progress-text');
+            this.batchProgressCount = this.batchProgress?.querySelector('.batch-progress-count');
+            this.batchProgressFill = this.batchProgress?.querySelector('.batch-progress-fill');
+            
+            console.log('✅ LoadingStateManager initialized');
+        },
+        
+        /**
+         * Show sync indicator with custom message
+         */
+        showSyncIndicator(message = 'Syncing...', type = 'info') {
+            if (!this.syncIndicator) return;
+            
+            this.activeSyncOperations++;
+            
+            // Update content
+            if (this.syncText) {
+                this.syncText.textContent = message;
+            }
+            
+            // Update styling based on type
+            this.syncIndicator.className = `sync-indicator show ${type === 'error' ? 'error' : type === 'success' ? 'success' : ''}`;
+            
+            // Clear any existing timeout
+            if (this.syncTimeout) {
+                clearTimeout(this.syncTimeout);
+                this.syncTimeout = null;
+            }
+        },
+        
+        /**
+         * Hide sync indicator after brief delay
+         */
+        hideSyncIndicator(type = 'success', delay = 1000) {
+            this.activeSyncOperations = Math.max(0, this.activeSyncOperations - 1);
+            
+            if (this.activeSyncOperations > 0) {
+                return; // Still have active operations
+            }
+            
+            if (!this.syncIndicator) return;
+            
+            // Show success/error state briefly before hiding
+            if (type !== 'info') {
+                this.syncIndicator.className = `sync-indicator show ${type}`;
+                if (this.syncText) {
+                    this.syncText.textContent = type === 'success' ? 'Synced!' : 'Sync failed';
+                }
+            }
+            
+            // Hide after delay
+            this.syncTimeout = setTimeout(() => {
+                if (this.syncIndicator && this.activeSyncOperations === 0) {
+                    this.syncIndicator.classList.remove('show', 'success', 'error');
+                }
+            }, delay);
+        },
+        
+        /**
+         * Show batch progress indicator
+         */
+        showBatchProgress(message = 'Refreshing games...', current = 0, total = 0) {
+            if (!this.batchProgress) return;
+            
+            // Update text and count
+            if (this.batchProgressText) {
+                this.batchProgressText.textContent = message;
+            }
+            if (this.batchProgressCount) {
+                this.batchProgressCount.textContent = `${current}/${total}`;
+            }
+            
+            // Update progress bar
+            const percentage = total > 0 ? (current / total) * 100 : 0;
+            if (this.batchProgressFill) {
+                this.batchProgressFill.style.width = `${percentage}%`;
+            }
+            
+            // Show the progress indicator
+            this.batchProgress.classList.add('show');
+        },
+        
+        /**
+         * Update batch progress
+         */
+        updateBatchProgress(current, total, message = null) {
+            if (!this.batchProgress) return;
+            
+            if (message && this.batchProgressText) {
+                this.batchProgressText.textContent = message;
+            }
+            
+            if (this.batchProgressCount) {
+                this.batchProgressCount.textContent = `${current}/${total}`;
+            }
+            
+            const percentage = total > 0 ? (current / total) * 100 : 0;
+            if (this.batchProgressFill) {
+                this.batchProgressFill.style.width = `${percentage}%`;
+            }
+        },
+        
+        /**
+         * Hide batch progress indicator
+         */
+        hideBatchProgress(delay = 500) {
+            if (!this.batchProgress) return;
+            
+            setTimeout(() => {
+                this.batchProgress.classList.remove('show');
+                // Reset progress bar
+                if (this.batchProgressFill) {
+                    this.batchProgressFill.style.width = '0%';
+                }
+            }, delay);
+        },
+        
+        /**
+         * Add loading state to button
+         */
+        setButtonLoading(button, loading = true) {
+            if (!button) return;
+            
+            if (loading) {
+                button.classList.add('btn-loading');
+                button.disabled = true;
+            } else {
+                button.classList.remove('btn-loading');
+                button.disabled = false;
+            }
+        },
+        
+        /**
+         * Add visual feedback to game row
+         */
+        setRowState(gameId, state) {
+            const row = document.querySelector(`tr[data-game-id="${gameId}"]`);
+            if (!row) return;
+            
+            // Remove existing state classes
+            row.classList.remove('optimistic-pending', 'optimistic-success', 'optimistic-error', 'updating', 'fade-out', 'fade-in');
+            
+            // Add new state class
+            switch (state) {
+                case 'pending':
+                    row.classList.add('optimistic-pending');
+                    break;
+                case 'updating':
+                    row.classList.add('updating');
+                    break;
+                case 'success':
+                    row.classList.add('optimistic-success');
+                    setTimeout(() => row.classList.remove('optimistic-success'), 2000);
+                    break;
+                case 'error':
+                    row.classList.add('optimistic-error');
+                    setTimeout(() => row.classList.remove('optimistic-error'), 3000);
+                    break;
+                case 'fade-out':
+                    row.classList.add('fade-out');
+                    break;
+                case 'fade-in':
+                    row.classList.add('fade-in');
+                    break;
+            }
+        },
+        
+        /**
+         * Trigger success micro-animation on element
+         */
+        showSuccessAnimation(element) {
+            if (!element) return;
+            element.classList.add('operation-success');
+            setTimeout(() => element.classList.remove('operation-success'), 600);
+        },
+        
+        /**
+         * Trigger error micro-animation on element
+         */
+        showErrorAnimation(element) {
+            if (!element) return;
+            element.classList.add('operation-error');
+            setTimeout(() => element.classList.remove('operation-error'), 600);
+        }
+    };
+    
+    // Initialize loading state manager when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => LoadingStateManager.init());
+    } else {
+        LoadingStateManager.init();
+    }
+    
+    /**
+     * Enhanced API call wrapper with loading state management
+     */
+    async function apiCallWithLoadingState(url, options = {}, loadingMessage = 'Processing...') {
+        LoadingStateManager.showSyncIndicator(loadingMessage);
+        
+        try {
+            const response = await fetch(url, options);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            LoadingStateManager.hideSyncIndicator('success');
+            return data;
+        } catch (error) {
+            console.error('API call failed:', error);
+            LoadingStateManager.hideSyncIndicator('error');
+            throw error;
+        }
+    }
+    
+    // Export loading state manager and functions
+    window.LoadingStateManager = LoadingStateManager;
+    window.apiCallWithLoadingState = apiCallWithLoadingState;
 
     // Export functions for use in other scripts
     window.createGameRow = createGameRow;
