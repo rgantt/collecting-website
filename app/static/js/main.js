@@ -604,6 +604,213 @@
     };
 
     /**
+     * Enhanced purchase conversion with optimistic updates
+     * Converts wishlist item to purchased collection item
+     */
+    window.purchaseWishlistGameOptimistic = async function(gameId, gameName, gameConsole, purchaseData) {
+        // Get the game from state or create enhanced object
+        let wishlistGame = window.gameStateManager.getGame(gameId);
+        if (!wishlistGame) {
+            wishlistGame = { 
+                id: gameId, 
+                name: gameName, 
+                console: gameConsole, 
+                is_wanted: true 
+            };
+        }
+        
+        // Create the purchased game object with purchase data
+        const purchasedGame = {
+            ...wishlistGame,
+            id: gameId,
+            purchased_game_id: gameId, // Will be updated with real ID from API
+            is_wanted: false,
+            purchase_date: purchaseData.purchase_date,
+            purchase_source: purchaseData.purchase_source,
+            purchase_price: parseFloat(purchaseData.purchase_price) || null,
+            acquisition_date: purchaseData.purchase_date,
+            current_price: wishlistGame.current_price || null
+        };
+        
+        // Store snapshot for rollback
+        const snapshot = {
+            wishlistGame: { ...wishlistGame },
+            wishlistRowHtml: document.querySelector(`tr[data-game-id="${gameId}"]`)?.outerHTML
+        };
+        
+        // UI update function
+        const uiUpdateFn = () => {
+            // Remove from wishlist section (with animation)
+            removeGameRowFromTable(gameId);
+            
+            // Update state manager - remove wishlist, add collection
+            window.gameStateManager.removeGame(gameId);
+            window.gameStateManager.addGame(purchasedGame);
+            
+            // Create and add to collection section
+            const newRow = createGameRow(purchasedGame, false); // false = not wishlist
+            addGameRowToTable(newRow, 'collectionTable', true);
+            
+            // Update counts and totals
+            updateResultCount(0, purchasedGame); // Net change is 0 (moved between sections)
+            
+            // Update in allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = purchasedGame;
+                } else {
+                    window.allGames.unshift(purchasedGame);
+                }
+            }
+        };
+        
+        // API call function
+        const apiFn = async () => {
+            const response = await fetch(`/api/wishlist/${gameId}/purchase`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(purchaseData)
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to purchase game');
+            }
+            
+            return data;
+        };
+        
+        // Rollback function
+        const rollbackFn = () => {
+            // Remove from collection state
+            window.gameStateManager.removeGame(gameId);
+            
+            // Restore to wishlist state
+            window.gameStateManager.addGame(snapshot.wishlistGame);
+            
+            // Remove from collection DOM
+            const collectionRow = document.querySelector(`tr[data-game-id="${gameId}"]`);
+            if (collectionRow) {
+                collectionRow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                collectionRow.style.opacity = '0';
+                collectionRow.style.transform = 'translateX(-20px)';
+                setTimeout(() => collectionRow.remove(), 300);
+            }
+            
+            // Restore wishlist row if we have the HTML
+            if (snapshot.wishlistRowHtml) {
+                const tbody = document.querySelector('#collectionTable tbody');
+                if (tbody) {
+                    // Create temporary container to parse HTML
+                    const temp = document.createElement('tbody');
+                    temp.innerHTML = snapshot.wishlistRowHtml;
+                    const restoredRow = temp.firstChild;
+                    
+                    // Find the right position to insert (maintain sort order)
+                    let inserted = false;
+                    const rows = tbody.querySelectorAll('tr');
+                    for (let row of rows) {
+                        if (row.dataset.gameId && parseInt(row.dataset.gameId) > parseInt(gameId)) {
+                            tbody.insertBefore(restoredRow, row);
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted) {
+                        tbody.appendChild(restoredRow);
+                    }
+                    
+                    // Animate restoration
+                    restoredRow.style.opacity = '0';
+                    restoredRow.style.transform = 'translateX(-20px)';
+                    setTimeout(() => {
+                        restoredRow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                        restoredRow.style.opacity = '1';
+                        restoredRow.style.transform = 'translateX(0)';
+                    }, 10);
+                }
+            }
+            
+            // Update counts
+            updateResultCount(0, snapshot.wishlistGame); // Restore original state
+            
+            // Restore in allGames array
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = snapshot.wishlistGame;
+                }
+            }
+        };
+        
+        try {
+            const result = await window.optimisticUpdater.applyOptimisticUpdate(
+                gameId,
+                'purchase_conversion',
+                uiUpdateFn,
+                apiFn,
+                {
+                    rollbackFn,
+                    onSuccess: (data) => {
+                        // Update with real purchased game ID and data from server
+                        const serverGame = data.game;
+                        
+                        // Update state with server response
+                        window.gameStateManager.removeGame(gameId);
+                        window.gameStateManager.addGame({
+                            ...purchasedGame,
+                            ...serverGame,
+                            purchased_game_id: serverGame.purchased_game_id || serverGame.id
+                        });
+                        
+                        // Update the row's data attributes with real IDs
+                        const row = document.querySelector(`tr[data-game-id="${gameId}"]`);
+                        if (row && serverGame.purchased_game_id) {
+                            row.dataset.purchasedGameId = serverGame.purchased_game_id;
+                        }
+                        
+                        // Update in allGames array
+                        if (window.allGames) {
+                            const index = window.allGames.findIndex(g => g.id == gameId);
+                            if (index !== -1) {
+                                window.allGames[index] = { ...purchasedGame, ...serverGame };
+                            }
+                        }
+                        
+                        // Show success message
+                        window.errorHandler.showSuccess(
+                            data.message || `Successfully purchased ${gameName}!`
+                        );
+                        
+                        // Close purchase modal if open
+                        const modal = document.getElementById('purchaseModal');
+                        if (modal) {
+                            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                            if (bootstrapModal) {
+                                bootstrapModal.hide();
+                            }
+                        }
+                    },
+                    onError: (error) => {
+                        window.errorHandler.showError(
+                            error.message || 'Failed to purchase game'
+                        );
+                    }
+                }
+            );
+            
+            return result;
+        } catch (error) {
+            console.error('Error in optimistic purchase conversion:', error);
+            throw error;
+        }
+    };
+
+    /**
      * Enhanced remove from collection with optimistic updates
      */
     window.removeFromCollectionOptimistic = async function(purchasedGameId, gameId, gameName, gameConsole) {

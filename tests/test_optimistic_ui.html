@@ -421,6 +421,86 @@
                 restoreFetch();
             });
 
+            // Test Purchase Conversion Optimistic
+            await testRunner.runTest('Purchase Conversion: Optimistic update succeeds', async () => {
+                // First add a game to wishlist state
+                const wishlistGame = { id: 250, name: 'Paper Mario', console: 'N64', is_wanted: true, current_price: 89.99 };
+                window.gameStateManager.addGame(wishlistGame);
+                
+                mockFetch({
+                    'POST /api/wishlist/250/purchase': {
+                        ok: true,
+                        data: {
+                            message: 'Successfully purchased Paper Mario!',
+                            game: {
+                                id: 250,
+                                purchased_game_id: 350,
+                                name: 'Paper Mario',
+                                console: 'N64',
+                                purchase_date: '2024-01-15',
+                                purchase_source: 'Local Store',
+                                purchase_price: 79.99
+                            }
+                        }
+                    }
+                });
+
+                const purchaseData = {
+                    purchase_date: '2024-01-15',
+                    purchase_source: 'Local Store',
+                    purchase_price: '79.99'
+                };
+
+                await window.purchaseWishlistGameOptimistic(250, 'Paper Mario', 'N64', purchaseData);
+                
+                // Check that game was converted in state (from wishlist to collection)
+                const convertedGame = window.gameStateManager.getGame(250);
+                assertNotNull(convertedGame, 'Game should be in state manager');
+                assertEqual(convertedGame.name, 'Paper Mario');
+                assertEqual(convertedGame.is_wanted, false);
+                assertEqual(convertedGame.purchase_price, 79.99);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(250);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Purchase Conversion: Rollback on failure', async () => {
+                // Add a wishlist game to state
+                const wishlistGame = { id: 260, name: 'Mario Party 3', console: 'N64', is_wanted: true };
+                window.gameStateManager.addGame(wishlistGame);
+                
+                mockFetch({
+                    'POST /api/wishlist/260/purchase': {
+                        ok: false,
+                        status: 400,
+                        data: { error: 'Purchase date is required' }
+                    }
+                });
+
+                const purchaseData = {
+                    purchase_source: 'Online'
+                    // Missing purchase_date
+                };
+
+                try {
+                    await window.purchaseWishlistGameOptimistic(260, 'Mario Party 3', 'N64', purchaseData);
+                    throw new Error('Should have thrown error');
+                } catch (error) {
+                    // Expected to fail
+                }
+                
+                // Check that game was restored to wishlist state
+                const restoredGame = window.gameStateManager.getGame(260);
+                assertNotNull(restoredGame, 'Game should be restored to state');
+                assertEqual(restoredGame.name, 'Mario Party 3');
+                assertEqual(restoredGame.is_wanted, true);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(260);
+                restoreFetch();
+            });
+
             // Test Add to Collection Optimistic
             await testRunner.runTest('Add to Collection: Optimistic update succeeds', async () => {
                 mockFetch({

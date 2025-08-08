@@ -237,6 +237,75 @@ class TestOptimisticUIRollback:
         assert 'error' in data
 
 
+class TestPurchaseConversion:
+    """Test suite for purchase conversion optimistic operations"""
+    
+    def test_purchase_conversion_success(self, client):
+        """Test successful conversion from wishlist to collection"""
+        # First add a game to wishlist
+        add_response = client.post('/api/wishlist/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/mario-party-2',
+                'condition': 'CIB'
+            }
+        )
+        game_data = json.loads(add_response.data)
+        game_id = game_data['game']['id']
+        
+        # Then convert it to purchased
+        purchase_response = client.post(f'/api/wishlist/{game_id}/purchase',
+            json={
+                'purchase_date': '2024-01-15',
+                'purchase_source': 'Local Store',
+                'purchase_price': '34.99'
+            }
+        )
+        
+        assert purchase_response.status_code == 200
+        purchase_data = json.loads(purchase_response.data)
+        assert 'message' in purchase_data
+        assert 'game' in purchase_data
+        assert purchase_data['game']['purchase_price'] == 34.99
+        assert purchase_data['game']['purchase_source'] == 'Local Store'
+    
+    def test_purchase_conversion_missing_date(self, client):
+        """Test purchase conversion without required purchase date"""
+        # Add a game to wishlist first
+        add_response = client.post('/api/wishlist/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/paper-mario',
+                'condition': 'CIB'
+            }
+        )
+        game_data = json.loads(add_response.data)
+        game_id = game_data['game']['id']
+        
+        # Try to convert without purchase date
+        purchase_response = client.post(f'/api/wishlist/{game_id}/purchase',
+            json={
+                'purchase_source': 'Online',
+                'purchase_price': '45.00'
+            }
+        )
+        
+        assert purchase_response.status_code == 400
+        error_data = json.loads(purchase_response.data)
+        assert 'error' in error_data
+    
+    def test_purchase_conversion_nonexistent_game(self, client):
+        """Test purchase conversion for non-existent wishlist game"""
+        purchase_response = client.post('/api/wishlist/99999/purchase',
+            json={
+                'purchase_date': '2024-01-15',
+                'purchase_price': '25.00'
+            }
+        )
+        
+        assert purchase_response.status_code == 404
+        error_data = json.loads(purchase_response.data)
+        assert 'error' in error_data
+
+
 class TestConcurrentOperations:
     """Test suite for concurrent optimistic operations"""
     

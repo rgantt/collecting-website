@@ -2345,41 +2345,31 @@
             submitBtn.textContent = 'Processing...';
             
             try {
-                const requestData = {
+                const purchaseData = {
                     purchase_date: purchaseDate,
                     purchase_source: purchaseSource || null,
                     purchase_price: purchasePrice || null
                 };
                 
-                const response = await fetch(`/api/wishlist/${gameId}/purchase`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestData)
-                });
+                // Get game info from modal for optimistic update
+                const gameName = document.getElementById('purchaseGameName').textContent;
+                const gameConsole = document.getElementById('purchaseGameConsole').textContent;
                 
-                const data = await response.json();
+                // Use optimistic purchase conversion
+                await window.purchaseWishlistGameOptimistic(gameId, gameName, gameConsole, purchaseData);
                 
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to mark game as purchased');
-                }
-                
-                // Show success message
-                successDiv.textContent = data.message || 'Game successfully marked as purchased!';
+                // Show success message in modal
+                successDiv.textContent = 'Game successfully marked as purchased!';
                 successDiv.classList.remove('d-none');
                 
-                // Reset form after showing success message but keep modal open
+                // Reset form after short delay
                 setTimeout(() => {
                     // Clear the form for next entry
                     document.getElementById('purchaseDateInput').value = new Date().toISOString().split('T')[0];
                     document.getElementById('purchaseSourceInput').value = '';
                     document.getElementById('purchasePriceInput').value = '';
                     
-                    // Refresh the games list to reflect the change in background
-                    loadAllGames();
-                    
-                    // Keep success message visible for a bit longer, then hide
+                    // Hide success message after a bit longer
                     setTimeout(() => {
                         successDiv.classList.add('d-none');
                     }, 2000);

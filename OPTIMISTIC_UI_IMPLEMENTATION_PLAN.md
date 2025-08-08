@@ -6,8 +6,9 @@
 - ✅ **Phase 1: Infrastructure & Core Systems** - **COMPLETED** (100%)
 - ✅ **Task 2.1: Mark/Unmark For Sale** - **COMPLETED** 
 - ✅ **Task 2.2: Add Game Optimistic Updates** - **COMPLETED**
-- ✅ **Task 2.3: Remove Game Optimistic Updates** - **COMPLETED** (Phase 2: 3/6 tasks)
-- 📍 **Next Up**: Task 2.4 - Purchase Conversion Optimistic Updates
+- ✅ **Task 2.3: Remove Game Optimistic Updates** - **COMPLETED**
+- ✅ **Task 2.4: Purchase Conversion Optimistic Updates** - **COMPLETED** (Phase 2: 4/6 tasks)
+- 📍 **Next Up**: Task 2.5 - Lent Out Status Optimistic Updates
 
 ## Overview
 Current flow: `User Action → API Call → Full Page Refresh`  
@@ -153,22 +154,24 @@ Target flow: `User Action → Immediate UI Update → Background API Call → Se
 
 ---
 
-### Task 2.4: Purchase Conversion Optimistic Updates
-**Assignee**: _TBD_  
+### Task 2.4: Purchase Conversion Optimistic Updates ✅ **COMPLETED**
+**Assignee**: Cascade AI  
 **Estimate**: 4 hours  
 **Priority**: MEDIUM
 
 **Description**: Convert wishlist→purchased operations to use optimistic updates.
 
 **Acceptance Criteria**:
-- [ ] Move game from wishlist section to collection section immediately
-- [ ] Update game card styling and actions immediately
-- [ ] Update totals immediately (add purchase price to acquisition total)
-- [ ] Implement rollback (move back to wishlist section)
-- [ ] Update purchase date/source/price display immediately
+- [x] Move game from wishlist section to collection section immediately
+- [x] Update game card styling and actions immediately
+- [x] Update totals immediately (add purchase price to acquisition total)
+- [x] Implement rollback (move back to wishlist section)
+- [x] Update purchase date/source/price display immediately
 
-**Files to Modify**:
-- `static/js/main.js` (purchase modal handler)
+**Files Modified**:
+- Updated `static/js/main.js` with `purchaseWishlistGameOptimistic` function
+- Modified `app/templates/index.html` to use optimistic purchase conversion
+- Added comprehensive tests for purchase conversion flow
 
 **Dependencies**: Task 1.1, Task 1.2
 
