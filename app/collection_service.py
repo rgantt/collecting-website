@@ -139,7 +139,8 @@ class CollectionService:
                 
                 # Return the game data with additional information
                 response_data = {
-                    'id': purchased_game_id,
+                    'id': physical_game_id,  # Use physical_game_id as the primary ID for consistency
+                    'purchased_game_id': purchased_game_id,  # Also include purchased_game_id
                     'name': game_data['name'],
                     'console': game_data['console'],
                     'pricecharting_id': game_data['pricecharting_id'],

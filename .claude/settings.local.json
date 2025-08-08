@@ -12,7 +12,10 @@
       "Bash(open tests/test_loading_states.html)",
       "Bash(open tests/test_optimistic_updates_comprehensive.html)",
       "Bash(grep:*)",
-      "Bash(open tests/test_no_page_refreshes.html)"
+      "Bash(open tests/test_no_page_refreshes.html)",
+      "Bash(curl:*)",
+      "Bash(kill:*)",
+      "Bash(lsof:*)"
     ],
     "deny": []
   }

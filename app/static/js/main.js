@@ -330,6 +330,8 @@
      * Enhanced add game to collection with optimistic updates
      */
     window.addToCollectionOptimistic = async function(gameData) {
+        console.log('🎮 DEBUG: Starting addToCollectionOptimistic', gameData);
+        
         // Generate a temporary ID for the new game
         const tempId = `temp_${Date.now()}`;
         const optimisticGame = {
@@ -340,26 +342,23 @@
             acquisition_date: gameData.purchase_date || new Date().toISOString()
         };
         
-        // UI update function
-        const uiUpdateFn = () => {
-            // Add to state manager
-            window.gameStateManager.addGame(optimisticGame);
+        
+        try {
+            console.log('🔄 DEBUG: Applying UI updates immediately');
             
-            // Create and add the game row
+            // 1. Apply immediate UI updates
+            window.gameStateManager.addGame(optimisticGame);
             const row = createGameRow(optimisticGame, false);
             addGameRowToTable(row, 'collectionTable', true);
-            
-            // Update count and totals
             updateResultCount(1, optimisticGame);
             
-            // Add to allGames array if it exists
             if (window.allGames) {
                 window.allGames.unshift(optimisticGame);
             }
-        };
-        
-        // API call function
-        const apiFn = async () => {
+            
+            console.log('✅ DEBUG: UI updated, making API call');
+            
+            // 2. Make background API call
             const response = await fetch('/api/collection/add', {
                 method: 'POST',
                 headers: {
@@ -368,86 +367,76 @@
                 body: JSON.stringify(gameData)
             });
             
+            console.log('📡 DEBUG: API response status:', response.status);
+            
             const data = await response.json();
+            console.log('📥 DEBUG: API response data:', data);
             
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to add game to collection');
             }
             
-            return data;
-        };
-        
-        // Rollback function
-        const rollbackFn = () => {
-            // Remove from state manager
+            // 3. Update with real game data on success
+            const realGame = data.game;
             window.gameStateManager.removeGame(tempId);
+            window.gameStateManager.addGame(realGame);
             
-            // Remove from DOM
-            const row = document.querySelector(`tr[data-game-id="${tempId}"]`);
-            if (row) {
-                row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                row.style.opacity = '0';
-                row.style.transform = 'translateY(-10px)';
-                setTimeout(() => row.remove(), 300);
+            // Update the row with real game data
+            const updatedRow = document.querySelector(`tr[data-game-id="${tempId}"]`);
+            if (updatedRow) {
+                // Update data attributes
+                updatedRow.dataset.gameId = realGame.id;
+                updatedRow.dataset.purchasedGameId = realGame.purchased_game_id || realGame.id;
+                
+                // Update the actual row content with server data
+                console.log('🔄 DEBUG: Updating row content with real game data:', realGame);
+                updateRowContent(updatedRow, realGame);
             }
             
-            // Update count and totals
+            // Update in allGames array
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id === tempId);
+                if (index !== -1) {
+                    window.allGames[index] = realGame;
+                }
+            }
+            
+            // Show success message
+            window.errorHandler.showSuccessToast(`Added "${realGame.name}" to collection`);
+            
+            // Queue background refresh for accuracy
+            queueGameRefresh(realGame.id);
+            
+            console.log('🎉 DEBUG: Collection add completed successfully');
+            return data;
+            
+        } catch (error) {
+            console.error('❌ DEBUG: Error occurred, rolling back:', error);
+            
+            // Rollback UI changes
+            window.gameStateManager.removeGame(tempId);
+            
+            const rollbackRow = document.querySelector(`tr[data-game-id="${tempId}"]`);
+            if (rollbackRow) {
+                rollbackRow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                rollbackRow.style.opacity = '0';
+                rollbackRow.style.transform = 'translateY(-10px)';
+                setTimeout(() => rollbackRow.remove(), 300);
+            }
+            
             updateResultCount(-1, optimisticGame);
             
-            // Remove from allGames array
             if (window.allGames) {
                 const index = window.allGames.findIndex(g => g.id === tempId);
                 if (index !== -1) {
                     window.allGames.splice(index, 1);
                 }
             }
-        };
-        
-        try {
-            const result = await window.optimisticUpdater.applyOptimisticUpdate(
-                tempId,
-                'add_to_collection',
-                uiUpdateFn,
-                apiFn,
-                {
-                    rollbackFn,
-                    onSuccess: (data) => {
-                        // Update the temporary ID with the real ID
-                        const realGame = data.game;
-                        window.gameStateManager.removeGame(tempId);
-                        window.gameStateManager.addGame(realGame);
-                        
-                        // Update the row's data attributes
-                        const row = document.querySelector(`tr[data-game-id="${tempId}"]`);
-                        if (row) {
-                            row.dataset.gameId = realGame.id;
-                            row.dataset.purchasedGameId = realGame.purchased_game_id || realGame.id;
-                        }
-                        
-                        // Update in allGames array
-                        if (window.allGames) {
-                            const index = window.allGames.findIndex(g => g.id === tempId);
-                            if (index !== -1) {
-                                window.allGames[index] = realGame;
-                            }
-                        }
-                        
-                        // Show success message
-                        window.errorHandler.showSuccess(
-                            `Added ${realGame.name} (${realGame.console}) to your collection!`
-                        );
-                    },
-                    onError: (error) => {
-                        window.errorHandler.showError(
-                            error.message || 'Failed to add game to collection'
-                        );
-                    }
-                }
-            );
             
-            return result;
-        } catch (error) {
-            console.error('Error in optimistic collection add:', error);
+            // Show error message
+            window.errorHandler.showErrorToast(error.message || 'Failed to add game to collection');
+            
+            console.log('🔄 DEBUG: Rollback completed');
             throw error;
         }
     };
@@ -1766,6 +1755,69 @@
     }
 
     /**
+     * Update row content with real server data after optimistic update
+     * @param {HTMLElement} row - The row element to update
+     * @param {Object} gameData - The real game data from server
+     */
+    function updateRowContent(row, gameData) {
+        console.log('🔄 updateRowContent: Updating row with real data:', gameData);
+        
+        // Update game name
+        const nameElement = row.querySelector('.game-name');
+        if (nameElement && gameData.name) {
+            nameElement.textContent = gameData.name;
+        }
+        
+        // Update console
+        const consoleElement = row.querySelector('.console');
+        if (consoleElement && gameData.console) {
+            consoleElement.textContent = gameData.console;
+        }
+        
+        // Update purchase price
+        const priceElement = row.querySelector('.purchase-price');
+        if (priceElement && gameData.purchase_price !== undefined) {
+            priceElement.textContent = gameData.purchase_price ? 
+                `$${parseFloat(gameData.purchase_price).toFixed(2)}` : '';
+        }
+        
+        // Update current price
+        const currentPriceElement = row.querySelector('.current-price');
+        if (currentPriceElement && gameData.current_price !== undefined) {
+            currentPriceElement.textContent = gameData.current_price ? 
+                `$${parseFloat(gameData.current_price).toFixed(2)}` : '';
+        }
+        
+        // Update condition
+        const conditionElement = row.querySelector('.condition');
+        if (conditionElement && gameData.condition) {
+            conditionElement.textContent = gameData.condition;
+        }
+        
+        // Update acquisition date
+        const dateElement = row.querySelector('.date');
+        if (dateElement && gameData.date) {
+            const date = new Date(gameData.date);
+            dateElement.textContent = date.toLocaleDateString();
+        }
+        
+        // Update source
+        const sourceElement = row.querySelector('.source-name');
+        if (sourceElement && gameData.source_name) {
+            sourceElement.textContent = gameData.source_name;
+        }
+        
+        // Update edit button data attributes
+        const editBtn = row.querySelector('.edit-details-btn');
+        if (editBtn) {
+            editBtn.dataset.gameName = gameData.name || '';
+            editBtn.dataset.gameConsole = gameData.console || '';
+        }
+        
+        console.log('✅ updateRowContent: Row updated successfully');
+    }
+
+    /**
      * Log conflict resolution for debugging
      */
     function logConflictResolution(gameId, choice, conflicts) {
@@ -1792,19 +1844,19 @@
         if (tableRow) {
             // Update name
             if (changes.name) {
-                const nameCell = tableRow.querySelector('.name-col');
-                if (nameCell) {
-                    nameCell.textContent = freshData.name;
-                    nameCell.title = freshData.name;
+                const nameElement = tableRow.querySelector('.game-name');
+                if (nameElement) {
+                    nameElement.textContent = freshData.name;
+                    nameElement.title = freshData.name;
                 }
             }
             
             // Update console
             if (changes.console) {
-                const consoleCell = tableRow.querySelector('.console-col');
-                if (consoleCell) {
-                    consoleCell.textContent = freshData.console;
-                    consoleCell.title = freshData.console;
+                const consoleElement = tableRow.querySelector('.console-col');
+                if (consoleElement) {
+                    consoleElement.textContent = freshData.console;
+                    consoleElement.title = freshData.console;
                 }
             }
             

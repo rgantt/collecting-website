@@ -429,7 +429,7 @@ def update_game_price(game_id):
 def get_game_last_price_update(game_id):
     """Get the date of the last price update for a specific game."""
     try:
-        last_update = get_last_price_update(game_id)
+        last_update = get_last_price_update(game_id, str(db_path))
         return jsonify({
             "success": True,
             "last_update": last_update
