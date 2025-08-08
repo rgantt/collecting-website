@@ -1034,6 +1034,247 @@
                 window.gameStateManager.removeGame(640);
                 restoreFetch();
             });
+
+            // Phase 3.2: Batch Refresh Tests
+            await testRunner.runTest('Batch Refresh: refreshMultipleGames() immediate mode', async () => {
+                // Add games to state
+                const games = [
+                    { id: 700, name: 'Batch Game 1', console: 'N64', purchase_price: 29.99 },
+                    { id: 701, name: 'Batch Game 2', console: 'GameCube', purchase_price: 34.99 },
+                    { id: 702, name: 'Batch Game 3', console: 'PS2', purchase_price: 19.99 }
+                ];
+                games.forEach(game => window.gameStateManager.addGame(game));
+                
+                // Mock batch API response
+                mockFetch({
+                    'POST /api/games/batch-refresh': {
+                        ok: true,
+                        data: {
+                            games: [
+                                { id: 700, name: 'Updated Batch Game 1', console: 'N64', purchase_price: 39.99, current_price: 45.99 },
+                                { id: 701, name: 'Batch Game 2', console: 'GameCube', purchase_price: 34.99, current_price: 40.99 },
+                                { id: 702, name: 'Updated Batch Game 3', console: 'PlayStation 2', purchase_price: 24.99, current_price: 29.99 }
+                            ],
+                            missing_game_ids: [],
+                            found_count: 3,
+                            missing_count: 0
+                        }
+                    }
+                });
+
+                const results = await window.refreshMultipleGames([700, 701, 702], { immediate: true });
+                
+                // Verify results structure
+                assert(Array.isArray(results), 'Should return array of results');
+                assertEqual(results.length, 3);
+                
+                // Verify games were updated in state
+                const updatedGame1 = window.gameStateManager.getGame(700);
+                assertEqual(updatedGame1.name, 'Updated Batch Game 1');
+                assertEqual(updatedGame1.current_price, 45.99);
+                
+                const updatedGame2 = window.gameStateManager.getGame(701);
+                assertEqual(updatedGame2.name, 'Batch Game 2'); // Unchanged
+                assertEqual(updatedGame2.current_price, 40.99); // New field
+                
+                const updatedGame3 = window.gameStateManager.getGame(702);
+                assertEqual(updatedGame3.console, 'PlayStation 2'); // Updated
+                assertEqual(updatedGame3.purchase_price, 24.99); // Updated
+                
+                // Cleanup
+                games.forEach(game => window.gameStateManager.removeGame(game.id));
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Batch Refresh: handles missing games', async () => {
+                // Add one game to state
+                const existingGame = { id: 710, name: 'Existing Game', console: 'N64' };
+                window.gameStateManager.addGame(existingGame);
+                
+                // Mock batch API response with missing games
+                mockFetch({
+                    'POST /api/games/batch-refresh': {
+                        ok: true,
+                        data: {
+                            games: [
+                                { id: 710, name: 'Existing Game', console: 'N64', purchase_price: 29.99 }
+                            ],
+                            missing_game_ids: [711, 712],
+                            found_count: 1,
+                            missing_count: 2
+                        }
+                    }
+                });
+
+                const results = await window.refreshMultipleGames([710, 711, 712], { immediate: true });
+                
+                // Verify results
+                assertEqual(results.length, 3);
+                
+                // Check existing game result
+                const existingResult = results.find(r => r.gameId === 710);
+                assert(existingResult.status === 'unchanged' || existingResult.status === 'updated');
+                
+                // Check deleted game results
+                const deletedResults = results.filter(r => r.status === 'deleted');
+                assertEqual(deletedResults.length, 2);
+                
+                // Verify games were removed from state
+                const deletedGame1 = window.gameStateManager.getGame(711);
+                assert(deletedGame1 === null, 'Deleted game should be removed from state');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(710);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Batch Refresh: debouncing works correctly', async () => {
+                // Add games to state
+                const games = [
+                    { id: 720, name: 'Debounce Game 1', console: 'N64' },
+                    { id: 721, name: 'Debounce Game 2', console: 'GameCube' }
+                ];
+                games.forEach(game => window.gameStateManager.addGame(game));
+                
+                // Mock batch API response
+                mockFetch({
+                    'POST /api/games/batch-refresh': {
+                        ok: true,
+                        data: {
+                            games: [
+                                { id: 720, name: 'Debounce Game 1', console: 'N64', current_price: 35.99 },
+                                { id: 721, name: 'Debounce Game 2', console: 'GameCube', current_price: 40.99 }
+                            ],
+                            missing_game_ids: [],
+                            found_count: 2,
+                            missing_count: 0
+                        }
+                    }
+                });
+
+                // Make multiple rapid calls (should be debounced into one batch)
+                const promise1 = window.refreshMultipleGames([720]);
+                const promise2 = window.refreshMultipleGames([721]);
+                const promise3 = window.refreshMultipleGames([720, 721]);
+                
+                // Wait for debounced execution
+                const [results1, results2, results3] = await Promise.all([promise1, promise2, promise3]);
+                
+                // All should have the same results (debounced into single batch)
+                assert(Array.isArray(results1), 'Should return array results');
+                assert(Array.isArray(results2), 'Should return array results');
+                assert(Array.isArray(results3), 'Should return array results');
+                
+                // Cleanup
+                games.forEach(game => window.gameStateManager.removeGame(game.id));
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Batch Refresh: queueGameRefresh convenience function', async () => {
+                // Add game to state
+                const game = { id: 730, name: 'Queue Test Game', console: 'PS1' };
+                window.gameStateManager.addGame(game);
+                
+                // Mock batch API response
+                mockFetch({
+                    'POST /api/games/batch-refresh': {
+                        ok: true,
+                        data: {
+                            games: [
+                                { id: 730, name: 'Queue Test Game', console: 'PS1', current_price: 25.99 }
+                            ],
+                            missing_game_ids: [],
+                            found_count: 1,
+                            missing_count: 0
+                        }
+                    }
+                });
+
+                const results = await window.queueGameRefresh(730);
+                
+                assert(Array.isArray(results), 'Should return array results');
+                
+                // Verify game was updated
+                const updatedGame = window.gameStateManager.getGame(730);
+                assertEqual(updatedGame.current_price, 25.99);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(730);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Batch Refresh: network error handling', async () => {
+                // Add games to state
+                const games = [
+                    { id: 740, name: 'Error Game 1', console: 'N64' },
+                    { id: 741, name: 'Error Game 2', console: 'GameCube' }
+                ];
+                games.forEach(game => window.gameStateManager.addGame(game));
+                
+                // Mock network error
+                mockFetch({
+                    'POST /api/games/batch-refresh': {
+                        ok: false,
+                        status: 500,
+                        data: { error: 'Internal server error' }
+                    }
+                });
+
+                const results = await window.refreshMultipleGames([740, 741], { immediate: true });
+                
+                // Should return empty array on error but not break
+                assert(Array.isArray(results), 'Should return array even on error');
+                assertEqual(results.length, 0, 'Should return empty array on error');
+                
+                // Original games should remain in state unchanged
+                const game1 = window.gameStateManager.getGame(740);
+                const game2 = window.gameStateManager.getGame(741);
+                assertNotNull(game1, 'Original game should remain in state');
+                assertNotNull(game2, 'Original game should remain in state');
+                assertEqual(game1.name, 'Error Game 1');
+                assertEqual(game2.name, 'Error Game 2');
+                
+                // Cleanup
+                games.forEach(game => window.gameStateManager.removeGame(game.id));
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Batch Refresh: flushBatchRefresh immediate execution', async () => {
+                // Add game to state
+                const game = { id: 750, name: 'Flush Test Game', console: 'Dreamcast' };
+                window.gameStateManager.addGame(game);
+                
+                // Queue a game for refresh (but don't await)
+                window.refreshMultipleGames([750]); // This will be queued
+                
+                // Mock batch API response
+                mockFetch({
+                    'POST /api/games/batch-refresh': {
+                        ok: true,
+                        data: {
+                            games: [
+                                { id: 750, name: 'Flush Test Game', console: 'Dreamcast', current_price: 55.99 }
+                            ],
+                            missing_game_ids: [],
+                            found_count: 1,
+                            missing_count: 0
+                        }
+                    }
+                });
+
+                // Flush immediately
+                const results = await window.flushBatchRefresh();
+                
+                assert(Array.isArray(results), 'Should return array results');
+                
+                // Verify game was updated immediately
+                const updatedGame = window.gameStateManager.getGame(750);
+                assertEqual(updatedGame.current_price, 55.99);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(750);
+                restoreFetch();
+            });
         }
 
         // Run all tests

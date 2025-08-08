@@ -314,5 +314,221 @@ class TestSelectiveGameRefresh:
         assert game['sale_notes'] == 'Great condition'
 
 
+class TestBatchRefreshOperations:
+    """Test suite for batch refresh functionality"""
+    
+    def test_batch_refresh_success_multiple_games(self, client):
+        """Test batch refresh with multiple valid games"""
+        # Create multiple games
+        game_ids = []
+        with client.application.app_context():
+            from app.routes import get_db
+            with get_db() as db:
+                cursor = db.cursor()
+                
+                # Insert multiple physical games
+                for i, name in enumerate(['Game 1', 'Game 2', 'Game 3']):
+                    cursor.execute(
+                        "INSERT INTO physical_games (name, console) VALUES (?, ?)",
+                        (name, f"Console {i+1}")
+                    )
+                    physical_game_id = cursor.lastrowid
+                    game_ids.append(physical_game_id)
+                    
+                    # Insert purchased games
+                    cursor.execute(
+                        "INSERT INTO purchased_games (physical_game, acquisition_date, price) VALUES (?, ?, ?)",
+                        (physical_game_id, "2024-01-01", 29.99 + i)
+                    )
+                
+                db.commit()
+        
+        # Test batch refresh API
+        response = client.post('/api/games/batch-refresh',
+            json={'game_ids': game_ids}
+        )
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        
+        assert 'games' in data
+        assert 'missing_game_ids' in data
+        assert data['found_count'] == 3
+        assert data['missing_count'] == 0
+        assert len(data['games']) == 3
+        
+        # Verify game data structure
+        for i, game in enumerate(data['games']):
+            assert game['id'] == game_ids[i]
+            assert game['name'] == f'Game {i+1}'
+            assert game['console'] == f'Console {i+1}'
+            assert game['purchase_price'] == 29.99 + i
+    
+    def test_batch_refresh_with_missing_games(self, client):
+        """Test batch refresh when some games don't exist"""
+        # Create one game
+        with client.application.app_context():
+            from app.routes import get_db
+            with get_db() as db:
+                cursor = db.cursor()
+                
+                cursor.execute(
+                    "INSERT INTO physical_games (name, console) VALUES (?, ?)",
+                    ("Existing Game", "Test Console")
+                )
+                existing_game_id = cursor.lastrowid
+                
+                cursor.execute(
+                    "INSERT INTO purchased_games (physical_game, acquisition_date, price) VALUES (?, ?, ?)",
+                    (existing_game_id, "2024-01-01", 39.99)
+                )
+                
+                db.commit()
+        
+        # Request batch with existing and non-existing games
+        game_ids = [existing_game_id, 99999, 99998]
+        response = client.post('/api/games/batch-refresh',
+            json={'game_ids': game_ids}
+        )
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        
+        assert data['found_count'] == 1
+        assert data['missing_count'] == 2
+        assert len(data['games']) == 1
+        assert len(data['missing_game_ids']) == 2
+        
+        # Verify found game
+        assert data['games'][0]['id'] == existing_game_id
+        assert data['games'][0]['name'] == 'Existing Game'
+        
+        # Verify missing games
+        assert 99999 in data['missing_game_ids']
+        assert 99998 in data['missing_game_ids']
+    
+    def test_batch_refresh_invalid_request_data(self, client):
+        """Test batch refresh with invalid request data"""
+        # Missing game_ids
+        response = client.post('/api/games/batch-refresh', json={})
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+        
+        # Non-array game_ids
+        response = client.post('/api/games/batch-refresh', json={'game_ids': 'not-an-array'})
+        assert response.status_code == 400
+        
+        # Empty game_ids array
+        response = client.post('/api/games/batch-refresh', json={'game_ids': []})
+        assert response.status_code == 400
+        
+        # Too many game_ids (over limit)
+        large_array = list(range(101))  # 101 items, over the limit of 100
+        response = client.post('/api/games/batch-refresh', json={'game_ids': large_array})
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'Maximum 100 games' in data['error']
+    
+    def test_batch_refresh_mixed_game_types(self, client):
+        """Test batch refresh with wishlist and collection games"""
+        with client.application.app_context():
+            from app.routes import get_db
+            with get_db() as db:
+                cursor = db.cursor()
+                
+                # Create wishlist game
+                cursor.execute(
+                    "INSERT INTO physical_games (name, console) VALUES (?, ?)",
+                    ("Wishlist Game", "N64")
+                )
+                wishlist_game_id = cursor.lastrowid
+                
+                cursor.execute(
+                    "INSERT INTO wanted_games (physical_game, condition) VALUES (?, ?)",
+                    (wishlist_game_id, "CIB")
+                )
+                
+                # Create collection game
+                cursor.execute(
+                    "INSERT INTO physical_games (name, console) VALUES (?, ?)",
+                    ("Collection Game", "GameCube")
+                )
+                collection_game_id = cursor.lastrowid
+                
+                cursor.execute(
+                    "INSERT INTO purchased_games (physical_game, acquisition_date, price) VALUES (?, ?, ?)",
+                    (collection_game_id, "2024-01-01", 24.99)
+                )
+                
+                db.commit()
+        
+        # Test batch refresh with both types
+        response = client.post('/api/games/batch-refresh',
+            json={'game_ids': [wishlist_game_id, collection_game_id]}
+        )
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        
+        assert data['found_count'] == 2
+        assert data['missing_count'] == 0
+        
+        # Find games by name to verify properties
+        games_by_name = {game['name']: game for game in data['games']}
+        
+        # Verify wishlist game
+        wishlist_game = games_by_name['Wishlist Game']
+        assert wishlist_game['is_wanted'] is True
+        assert wishlist_game['purchase_price'] is None
+        assert wishlist_game['condition'] == 'CIB'
+        
+        # Verify collection game
+        collection_game = games_by_name['Collection Game']
+        assert collection_game['is_wanted'] is False
+        assert collection_game['purchase_price'] == 24.99
+    
+    def test_batch_refresh_large_batch_within_limits(self, client):
+        """Test batch refresh with a large but valid batch size"""
+        # Create 50 games (within the 100 game limit)
+        game_ids = []
+        with client.application.app_context():
+            from app.routes import get_db
+            with get_db() as db:
+                cursor = db.cursor()
+                
+                for i in range(50):
+                    cursor.execute(
+                        "INSERT INTO physical_games (name, console) VALUES (?, ?)",
+                        (f"Batch Game {i}", "Test Console")
+                    )
+                    physical_game_id = cursor.lastrowid
+                    game_ids.append(physical_game_id)
+                    
+                    cursor.execute(
+                        "INSERT INTO purchased_games (physical_game, acquisition_date, price) VALUES (?, ?, ?)",
+                        (physical_game_id, "2024-01-01", 10.00 + i)
+                    )
+                
+                db.commit()
+        
+        # Test batch refresh
+        response = client.post('/api/games/batch-refresh',
+            json={'game_ids': game_ids}
+        )
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        
+        assert data['found_count'] == 50
+        assert data['missing_count'] == 0
+        assert len(data['games']) == 50
+        
+        # Verify games are returned in order
+        for i, game in enumerate(data['games']):
+            assert game['name'] == f'Batch Game {i}'
+            assert game['purchase_price'] == 10.00 + i
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

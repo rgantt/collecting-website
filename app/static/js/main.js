@@ -1681,6 +1681,169 @@
         }
     }
 
+    // Batch refresh functionality with debouncing (Phase 3.2)
+    let batchRefreshQueue = new Set();
+    let batchRefreshTimeout = null;
+    const BATCH_REFRESH_DELAY = 2000; // 2 second delay for debouncing
+    const MAX_BATCH_SIZE = 50; // Maximum games per batch request
+    
+    window.refreshMultipleGames = async function(gameIds, options = {}) {
+        console.log('🔄 Starting batch refresh for games:', gameIds);
+        
+        if (!Array.isArray(gameIds) || gameIds.length === 0) {
+            console.warn('Invalid gameIds provided to refreshMultipleGames');
+            return [];
+        }
+        
+        // Remove duplicates and ensure valid IDs
+        const validGameIds = [...new Set(gameIds.filter(id => id && !isNaN(id)))];
+        
+        if (validGameIds.length === 0) {
+            console.warn('No valid game IDs provided');
+            return [];
+        }
+        
+        // If immediate option is set, skip debouncing
+        if (options.immediate) {
+            return await executeBatchRefresh(validGameIds);
+        }
+        
+        // Add to debounced queue
+        validGameIds.forEach(id => batchRefreshQueue.add(id));
+        
+        // Clear existing timeout and set new one
+        if (batchRefreshTimeout) {
+            clearTimeout(batchRefreshTimeout);
+        }
+        
+        return new Promise((resolve) => {
+            batchRefreshTimeout = setTimeout(async () => {
+                const queuedIds = Array.from(batchRefreshQueue);
+                batchRefreshQueue.clear();
+                batchRefreshTimeout = null;
+                
+                const results = await executeBatchRefresh(queuedIds);
+                resolve(results);
+            }, BATCH_REFRESH_DELAY);
+        });
+    };
+    
+    // Execute the actual batch refresh API call
+    async function executeBatchRefresh(gameIds) {
+        console.log(`📡 Executing batch refresh for ${gameIds.length} games:`, gameIds);
+        
+        try {
+            // Split large batches into smaller chunks
+            const chunks = [];
+            for (let i = 0; i < gameIds.length; i += MAX_BATCH_SIZE) {
+                chunks.push(gameIds.slice(i, i + MAX_BATCH_SIZE));
+            }
+            
+            const allResults = [];
+            
+            // Process each chunk
+            for (const chunk of chunks) {
+                console.log(`📦 Processing batch chunk of ${chunk.length} games`);
+                
+                const response = await fetch('/api/games/batch-refresh', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        game_ids: chunk
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Batch refresh failed: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log(`📥 Received batch data: ${result.found_count} found, ${result.missing_count} missing`);
+                
+                // Process found games
+                for (const freshGameData of result.games) {
+                    const gameId = freshGameData.id;
+                    const currentGameData = window.gameStateManager.getGame(gameId);
+                    
+                    if (!currentGameData) {
+                        console.log('⚠️ Game not in client state, adding:', gameId);
+                        window.gameStateManager.addGame(freshGameData);
+                        allResults.push({ gameId, status: 'added', data: freshGameData });
+                        continue;
+                    }
+                    
+                    // Perform differential update
+                    const changes = detectGameDataChanges(currentGameData, freshGameData);
+                    
+                    if (Object.keys(changes).length === 0) {
+                        console.log('✅ No changes for game:', gameId);
+                        allResults.push({ gameId, status: 'unchanged', data: currentGameData });
+                        continue;
+                    }
+                    
+                    console.log('🔄 Applying batch changes for game:', gameId, changes);
+                    
+                    // Update client state
+                    window.gameStateManager.updateGame(freshGameData);
+                    
+                    // Apply differential DOM updates
+                    applyGameDataChanges(gameId, changes, freshGameData);
+                    
+                    // Update allGames array if it exists
+                    if (window.allGames) {
+                        const index = window.allGames.findIndex(g => g.id == gameId);
+                        if (index !== -1) {
+                            window.allGames[index] = freshGameData;
+                        }
+                    }
+                    
+                    allResults.push({ gameId, status: 'updated', data: freshGameData, changes });
+                }
+                
+                // Handle missing (deleted) games
+                for (const missingGameId of result.missing_game_ids) {
+                    console.log('🗑️ Handling deleted game in batch:', missingGameId);
+                    handleDeletedGameRefresh(missingGameId);
+                    allResults.push({ gameId: missingGameId, status: 'deleted' });
+                }
+            }
+            
+            console.log(`✅ Batch refresh completed: ${allResults.length} games processed`);
+            return allResults;
+            
+        } catch (error) {
+            console.error('❌ Error in batch refresh:', error);
+            // Return partial results or empty array - don't break UI
+            return [];
+        }
+    }
+    
+    // Convenience function to queue single game for batch refresh
+    window.queueGameRefresh = function(gameId) {
+        console.log('📋 Queuing game for batch refresh:', gameId);
+        return window.refreshMultipleGames([gameId]);
+    };
+    
+    // Function to flush the batch refresh queue immediately
+    window.flushBatchRefresh = function() {
+        console.log('⚡ Flushing batch refresh queue immediately');
+        
+        if (batchRefreshTimeout) {
+            clearTimeout(batchRefreshTimeout);
+            batchRefreshTimeout = null;
+        }
+        
+        if (batchRefreshQueue.size > 0) {
+            const queuedIds = Array.from(batchRefreshQueue);
+            batchRefreshQueue.clear();
+            return executeBatchRefresh(queuedIds);
+        }
+        
+        return Promise.resolve([]);
+    };
+
     // Export functions for use in other scripts
     window.createGameRow = createGameRow;
     window.addGameRowToTable = addGameRowToTable;

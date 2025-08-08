@@ -10,8 +10,8 @@
 - ✅ **Task 2.4: Purchase Conversion Optimistic Updates** - **COMPLETED**
 - ✅ **Task 2.5: Lent Out Status Optimistic Updates** - **COMPLETED**
 - ✅ **Task 2.6: Edit Details Optimistic Updates** - **COMPLETED** (Phase 2: 6/6 tasks - **100% COMPLETE!**)
-- ✅ **Task 3.1: Selective Game Data Refresh** - **COMPLETED** (Phase 3: 1/2 tasks)
-- 📍 **Next Up**: Task 3.2 - Batch Refresh Operations
+- ✅ **Task 3.1: Selective Game Data Refresh** - **COMPLETED** 
+- ✅ **Task 3.2: Batch Refresh Operations** - **COMPLETED** (Phase 3: 2/2 tasks - **100% COMPLETE!**)
 
 ## Overview
 Current flow: `User Action → API Call → Full Page Refresh`  
@@ -278,22 +278,33 @@ Target flow: `User Action → Immediate UI Update → Background API Call → Se
 
 ---
 
-### Task 3.2: Batch Refresh Operations
-**Assignee**: _TBD_  
+### Task 3.2: Batch Refresh Operations ✅ **COMPLETED**
+**Assignee**: Cascade AI  
 **Estimate**: 3 hours  
 **Priority**: LOW
 
 **Description**: Handle refreshing multiple games efficiently for batch operations.
 
 **Acceptance Criteria**:
-- [ ] Create `refreshMultipleGames(gameIds)` function
-- [ ] Implement debouncing for rapid successive operations
-- [ ] Add batch API endpoint for multiple game refresh
-- [ ] Optimize for minimal API calls
+- [x] Create `refreshMultipleGames(gameIds)` function
+- [x] Implement debouncing for rapid successive operations
+- [x] Add batch API endpoint for multiple game refresh
+- [x] Optimize for minimal API calls
 
-**Files to Modify**:
-- `app/routes.py` (batch endpoint)
-- `static/js/main.js`
+**Files Created**:
+- Added 5 additional backend tests for batch operations in `tests/test_selective_refresh.py`
+
+**Files Modified**:
+- `app/routes.py` - Added `POST /api/games/batch-refresh` endpoint
+- `static/js/main.js` - Added `refreshMultipleGames()` with 2-second debouncing
+- `tests/test_optimistic_ui.html` - Added 6 frontend tests for batch refresh functionality
+
+**Key Features Implemented**:
+- **Batch API Endpoint**: Handles up to 100 games per request with detailed response metadata
+- **Debouncing System**: 2-second delay batches rapid successive refresh requests
+- **Split Large Batches**: Automatically splits requests over 50 games into smaller chunks
+- **Error Resilience**: Network failures don't break functionality, graceful degradation
+- **Convenience Functions**: `queueGameRefresh()` and `flushBatchRefresh()` for different use cases
 
 **Dependencies**: Task 3.1
 

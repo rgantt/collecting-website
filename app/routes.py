@@ -755,6 +755,114 @@ def get_single_game(game_id):
         current_app.logger.error(f"Error getting single game {game_id}: {str(e)}")
         return jsonify({"error": "Failed to get game data"}), 500
 
+@main.route('/api/games/batch-refresh', methods=['POST'])
+def batch_refresh_games():
+    """Get data for multiple games by physical game IDs."""
+    try:
+        data = request.get_json()
+        if not data or 'game_ids' not in data:
+            return jsonify({"error": "game_ids array is required"}), 400
+            
+        game_ids = data['game_ids']
+        if not isinstance(game_ids, list) or len(game_ids) == 0:
+            return jsonify({"error": "game_ids must be a non-empty array"}), 400
+            
+        # Limit batch size to prevent abuse
+        if len(game_ids) > 100:
+            return jsonify({"error": "Maximum 100 games per batch request"}), 400
+            
+        current_app.logger.info(f"Batch refreshing {len(game_ids)} games: {game_ids}")
+        
+        with get_db() as db:
+            cursor = db.cursor()
+            
+            # Use same query structure as single game but with IN clause
+            placeholders = ','.join(['?' for _ in game_ids])
+            query = f"""
+                WITH latest_prices AS (
+                    SELECT 
+                        pricecharting_id,
+                        condition,
+                        price,
+                        ROW_NUMBER() OVER (PARTITION BY pricecharting_id, condition ORDER BY retrieve_time DESC) as rn
+                    FROM pricecharting_prices
+                ),
+                games_with_prices AS (
+                    SELECT 
+                        p.id as id,
+                        pg.id as purchased_game_id,
+                        p.name as name,
+                        p.console as console,
+                        COALESCE(w.condition, pg.condition) as condition,
+                        s.name as source_name,
+                        CAST(pg.price AS DECIMAL) as purchase_price,
+                        CAST(lp.price AS DECIMAL) as current_price,
+                        pg.acquisition_date as date,
+                        CASE WHEN w.physical_game IS NOT NULL THEN 1 ELSE 0 END as is_wanted,
+                        CASE WHEN l.id IS NOT NULL THEN 1 ELSE 0 END as is_lent,
+                        l.lent_date,
+                        l.lent_to,
+                        l.note as lent_note,
+                        CASE WHEN gfs.id IS NOT NULL THEN 1 ELSE 0 END as is_for_sale,
+                        gfs.asking_price,
+                        gfs.notes as sale_notes,
+                        gfs.date_marked as sale_date_marked,
+                        pc.url as pricecharting_url,
+                        pc.pricecharting_id
+                    FROM physical_games p
+                    LEFT JOIN purchased_games pg ON p.id = pg.physical_game
+                    LEFT JOIN wanted_games w ON p.id = w.physical_game
+                    LEFT JOIN sources s ON pg.source = s.name
+                    LEFT JOIN physical_games_pricecharting_games pcg ON p.id = pcg.physical_game
+                    LEFT JOIN pricecharting_games pc ON pcg.pricecharting_game = pc.id
+                    LEFT JOIN latest_prices lp ON pc.pricecharting_id = lp.pricecharting_id 
+                        AND lp.rn = 1
+                        AND (
+                            (pg.condition IS NOT NULL AND LOWER(lp.condition) = LOWER(pg.condition))
+                            OR (w.condition IS NOT NULL AND LOWER(lp.condition) = LOWER(w.condition))
+                        )
+                    LEFT JOIN lent_games l ON pg.id = l.purchased_game AND l.returned_date IS NULL
+                    LEFT JOIN games_for_sale gfs ON pg.id = gfs.purchased_game_id
+                    WHERE p.id IN ({placeholders})
+                )
+                SELECT * FROM games_with_prices ORDER BY id
+            """
+            
+            cursor.execute(query, game_ids)
+            rows = cursor.fetchall()
+            
+            # Convert rows to dictionaries
+            columns = [desc[0] for desc in cursor.description]
+            games_data = []
+            found_game_ids = []
+            
+            for row in rows:
+                game_data = dict(zip(columns, row))
+                
+                # Convert boolean fields
+                game_data['is_wanted'] = bool(game_data['is_wanted'])
+                game_data['is_lent'] = bool(game_data['is_lent'])
+                game_data['is_for_sale'] = bool(game_data['is_for_sale'])
+                
+                games_data.append(game_data)
+                found_game_ids.append(game_data['id'])
+            
+            # Determine which games were not found (deleted)
+            missing_game_ids = [gid for gid in game_ids if gid not in found_game_ids]
+            
+            current_app.logger.info(f"Batch refresh found {len(games_data)} games, {len(missing_game_ids)} missing")
+            
+            return jsonify({
+                "games": games_data,
+                "missing_game_ids": missing_game_ids,
+                "found_count": len(games_data),
+                "missing_count": len(missing_game_ids)
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"Error in batch refresh: {str(e)}")
+        return jsonify({"error": "Failed to refresh games"}), 500
+
 @main.route('/api/wishlist/<int:game_id>/remove', methods=['DELETE'])
 def remove_from_wishlist(game_id):
     """Remove a game from the wishlist."""
