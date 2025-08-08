@@ -2273,34 +2273,23 @@
             confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Removing...';
             
             try {
-                const response = await fetch(`/api/wishlist/${gameId}/remove`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+                // Use optimistic removal
+                await window.removeFromWishlistOptimistic(gameId, gameName, gameConsole);
                 
-                const result = await response.json();
+                // Show success message in modal
+                successDiv.textContent = `"${gameName}" has been removed from your wishlist.`;
+                successDiv.classList.remove('d-none');
                 
-                if (response.ok) {
-                    // Show success message
-                    successDiv.textContent = `"${gameName}" has been removed from your wishlist.`;
-                    successDiv.classList.remove('d-none');
-                    
-                    // Update original button
-                    button.textContent = 'Removed!';
-                    button.classList.remove('btn-outline-danger');
-                    button.classList.add('btn-success');
-                    
-                    // Auto-close modal and reload games after 1.5 seconds
-                    setTimeout(() => {
-                        const modalInstance = bootstrap.Modal.getInstance(removeModal);
-                        modalInstance.hide();
-                        loadAllGames();
-                    }, 1500);
-                } else {
-                    throw new Error(result.error || 'Failed to remove game from wishlist');
-                }
+                // Update original button
+                button.textContent = 'Removed!';
+                button.classList.remove('btn-outline-danger');
+                button.classList.add('btn-success');
+                
+                // Auto-close modal after a short delay
+                setTimeout(() => {
+                    const modalInstance = bootstrap.Modal.getInstance(removeModal);
+                    modalInstance.hide();
+                }, 1500);
             } catch (error) {
                 console.error('Remove from wishlist error:', error);
                 
@@ -3429,16 +3418,8 @@
             submitBtn.textContent = 'Removing from Collection...';
             
             try {
-                const response = await fetch(`/api/purchased_game/${purchasedGameId}/remove_from_collection`, {
-                    method: 'DELETE'
-                });
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to remove game from collection');
-                }
-                
-                const result = await response.json();
+                // Use optimistic removal
+                await window.removeFromCollectionOptimistic(purchasedGameId, gameId, gameName, gameConsole);
                 
                 // Show success message
                 successDiv.textContent = 'Game removed from collection successfully!';
@@ -3447,11 +3428,10 @@
                 // Update button
                 submitBtn.textContent = 'Removed from Collection!';
                 
-                // Close modal after delay and refresh games
+                // Close modal after delay
                 setTimeout(() => {
                     const bootstrapModal = bootstrap.Modal.getInstance(modal);
                     bootstrapModal.hide();
-                    loadAllGames();
                 }, 1500);
                 
             } catch (error) {

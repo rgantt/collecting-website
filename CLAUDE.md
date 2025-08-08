@@ -120,3 +120,29 @@ This is a Flask-based web application for managing video game collections with t
 - CSRF protection via Flask's built-in mechanisms
 - Input validation on all user-submitted data
 - No direct SQL string concatenation (parameterized queries)
+
+### Testing Strategy
+
+**Backend Tests**:
+- Location: `tests/test_optimistic_ui.py`
+- Framework: pytest with coverage reporting
+- Test categories: API endpoints, error handling, rollback scenarios, concurrent operations
+- Run with: `python run_tests.py` or `pytest tests/`
+- Coverage goal: 40%+ with focus on critical paths
+
+**Frontend Tests**:
+- Location: `tests/test_optimistic_ui.html` 
+- Framework: Custom test runner with mock fetch
+- Test categories: State management, optimistic updates, UI interactions, rollbacks
+- Run by: Opening HTML file in browser
+- Includes mocked API responses for isolated testing
+
+**Integration Testing**:
+- Tests cover full optimistic update flow (UI → API → Database)
+- Rollback scenarios verify proper error handling
+- Concurrent operation tests ensure race condition handling
+
+**CI/CD Integration**:
+- GitHub Actions runs backend tests before deployment
+- Tests must pass before merging changes
+- Coverage reports generated automatically

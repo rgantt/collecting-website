@@ -438,9 +438,318 @@
         }
     };
 
+    /**
+     * Remove a game row from the table with animation
+     * @param {string|number} gameId - The game ID
+     * @param {Function} onComplete - Callback after animation completes
+     */
+    function removeGameRowFromTable(gameId, onComplete) {
+        const row = document.querySelector(`tr[data-game-id="${gameId}"]`);
+        if (!row) {
+            console.warn(`Row not found for game ID: ${gameId}`);
+            if (onComplete) onComplete();
+            return;
+        }
+        
+        // Animate removal
+        row.style.transition = 'opacity 0.3s ease, transform 0.3s ease, height 0.3s ease';
+        row.style.opacity = '0';
+        row.style.transform = 'translateX(-20px)';
+        
+        setTimeout(() => {
+            row.remove();
+            if (onComplete) onComplete();
+        }, 300);
+    }
+
+    /**
+     * Enhanced remove from wishlist with optimistic updates
+     */
+    window.removeFromWishlistOptimistic = async function(gameId, gameName, gameConsole) {
+        // Get the game from state or create minimal object
+        let game = window.gameStateManager.getGame(gameId);
+        if (!game) {
+            // Create minimal game object for UI updates
+            game = { id: gameId, name: gameName, console: gameConsole, is_wanted: true };
+        }
+        
+        // Store snapshot for rollback
+        const snapshot = {
+            game: { ...game },
+            rowHtml: document.querySelector(`tr[data-game-id="${gameId}"]`)?.outerHTML
+        };
+        
+        // UI update function
+        const uiUpdateFn = () => {
+            // Remove from DOM with animation
+            removeGameRowFromTable(gameId);
+            
+            // Update count
+            updateResultCount(-1, game);
+            
+            // Remove from state manager
+            window.gameStateManager.removeGame(gameId);
+            
+            // Remove from allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames.splice(index, 1);
+                }
+            }
+        };
+        
+        // API call function
+        const apiFn = async () => {
+            const response = await fetch(`/api/wishlist/${gameId}/remove`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to remove game from wishlist');
+            }
+            
+            return result;
+        };
+        
+        // Rollback function
+        const rollbackFn = () => {
+            // Restore to state manager
+            window.gameStateManager.addGame(snapshot.game);
+            
+            // Restore the row if we have the HTML
+            if (snapshot.rowHtml) {
+                const tbody = document.querySelector('#collectionTable tbody');
+                if (tbody) {
+                    // Create temporary container to parse HTML
+                    const temp = document.createElement('tbody');
+                    temp.innerHTML = snapshot.rowHtml;
+                    const restoredRow = temp.firstChild;
+                    
+                    // Find the right position to insert (maintain sort order)
+                    let inserted = false;
+                    const rows = tbody.querySelectorAll('tr');
+                    for (let row of rows) {
+                        if (row.dataset.gameId && parseInt(row.dataset.gameId) > parseInt(gameId)) {
+                            tbody.insertBefore(restoredRow, row);
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted) {
+                        tbody.appendChild(restoredRow);
+                    }
+                    
+                    // Animate restoration
+                    restoredRow.style.opacity = '0';
+                    restoredRow.style.transform = 'translateX(-20px)';
+                    setTimeout(() => {
+                        restoredRow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                        restoredRow.style.opacity = '1';
+                        restoredRow.style.transform = 'translateX(0)';
+                    }, 10);
+                }
+            }
+            
+            // Update count
+            updateResultCount(1, snapshot.game);
+            
+            // Restore to allGames array
+            if (window.allGames) {
+                window.allGames.push(snapshot.game);
+            }
+        };
+        
+        try {
+            const result = await window.optimisticUpdater.applyOptimisticUpdate(
+                gameId,
+                'remove_from_wishlist',
+                uiUpdateFn,
+                apiFn,
+                {
+                    rollbackFn,
+                    onSuccess: () => {
+                        // Show success message
+                        window.errorHandler.showSuccess(
+                            `"${gameName}" has been removed from your wishlist`
+                        );
+                        
+                        // Close modal if open
+                        const modal = document.getElementById('removeWishlistModal');
+                        if (modal) {
+                            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                            if (bootstrapModal) {
+                                bootstrapModal.hide();
+                            }
+                        }
+                    },
+                    onError: (error) => {
+                        window.errorHandler.showError(
+                            error.message || 'Failed to remove game from wishlist'
+                        );
+                    }
+                }
+            );
+            
+            return result;
+        } catch (error) {
+            console.error('Error in optimistic wishlist removal:', error);
+            throw error;
+        }
+    };
+
+    /**
+     * Enhanced remove from collection with optimistic updates
+     */
+    window.removeFromCollectionOptimistic = async function(purchasedGameId, gameId, gameName, gameConsole) {
+        // Get the game from state or create minimal object
+        let game = window.gameStateManager.getGame(gameId);
+        if (!game) {
+            // Create minimal game object for UI updates
+            game = { 
+                id: gameId, 
+                purchased_game_id: purchasedGameId,
+                name: gameName, 
+                console: gameConsole, 
+                is_wanted: false 
+            };
+        }
+        
+        // Store snapshot for rollback
+        const snapshot = {
+            game: { ...game },
+            rowHtml: document.querySelector(`tr[data-game-id="${gameId}"]`)?.outerHTML
+        };
+        
+        // UI update function
+        const uiUpdateFn = () => {
+            // Remove from DOM with animation
+            removeGameRowFromTable(gameId);
+            
+            // Update count and totals
+            updateResultCount(-1, game);
+            
+            // Remove from state manager
+            window.gameStateManager.removeGame(gameId);
+            
+            // Remove from allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId || g.purchased_game_id == purchasedGameId);
+                if (index !== -1) {
+                    window.allGames.splice(index, 1);
+                }
+            }
+        };
+        
+        // API call function
+        const apiFn = async () => {
+            const response = await fetch(`/api/purchased_game/${purchasedGameId}/remove_from_collection`, {
+                method: 'DELETE'
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to remove game from collection');
+            }
+            
+            return await response.json();
+        };
+        
+        // Rollback function
+        const rollbackFn = () => {
+            // Restore to state manager
+            window.gameStateManager.addGame(snapshot.game);
+            
+            // Restore the row if we have the HTML
+            if (snapshot.rowHtml) {
+                const tbody = document.querySelector('#collectionTable tbody');
+                if (tbody) {
+                    // Create temporary container to parse HTML
+                    const temp = document.createElement('tbody');
+                    temp.innerHTML = snapshot.rowHtml;
+                    const restoredRow = temp.firstChild;
+                    
+                    // Find the right position to insert (maintain sort order)
+                    let inserted = false;
+                    const rows = tbody.querySelectorAll('tr');
+                    for (let row of rows) {
+                        if (row.dataset.gameId && parseInt(row.dataset.gameId) > parseInt(gameId)) {
+                            tbody.insertBefore(restoredRow, row);
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted) {
+                        tbody.appendChild(restoredRow);
+                    }
+                    
+                    // Animate restoration
+                    restoredRow.style.opacity = '0';
+                    restoredRow.style.transform = 'translateX(-20px)';
+                    setTimeout(() => {
+                        restoredRow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                        restoredRow.style.opacity = '1';
+                        restoredRow.style.transform = 'translateX(0)';
+                    }, 10);
+                }
+            }
+            
+            // Update count and totals
+            updateResultCount(1, snapshot.game);
+            
+            // Restore to allGames array
+            if (window.allGames) {
+                window.allGames.push(snapshot.game);
+            }
+        };
+        
+        try {
+            const result = await window.optimisticUpdater.applyOptimisticUpdate(
+                gameId,
+                'remove_from_collection',
+                uiUpdateFn,
+                apiFn,
+                {
+                    rollbackFn,
+                    onSuccess: () => {
+                        // Show success message
+                        window.errorHandler.showSuccess(
+                            `"${gameName}" has been removed from your collection`
+                        );
+                        
+                        // Close modal if open
+                        const modal = document.getElementById('removeFromCollectionModal');
+                        if (modal) {
+                            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                            if (bootstrapModal) {
+                                bootstrapModal.hide();
+                            }
+                        }
+                    },
+                    onError: (error) => {
+                        window.errorHandler.showError(
+                            error.message || 'Failed to remove game from collection'
+                        );
+                    }
+                }
+            );
+            
+            return result;
+        } catch (error) {
+            console.error('Error in optimistic collection removal:', error);
+            throw error;
+        }
+    };
+
     // Export functions for use in other scripts
     window.createGameRow = createGameRow;
     window.addGameRowToTable = addGameRowToTable;
     window.updateResultCount = updateResultCount;
+    window.removeGameRowFromTable = removeGameRowFromTable;
     
 })();

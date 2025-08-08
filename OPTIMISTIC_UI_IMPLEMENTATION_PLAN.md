@@ -5,8 +5,9 @@
 ## 🎉 **COMPLETION STATUS**
 - ✅ **Phase 1: Infrastructure & Core Systems** - **COMPLETED** (100%)
 - ✅ **Task 2.1: Mark/Unmark For Sale** - **COMPLETED** 
-- ✅ **Task 2.2: Add Game Optimistic Updates** - **COMPLETED** (Phase 2: 2/6 tasks)
-- 📍 **Next Up**: Task 2.3 - Remove Game Optimistic Updates
+- ✅ **Task 2.2: Add Game Optimistic Updates** - **COMPLETED**
+- ✅ **Task 2.3: Remove Game Optimistic Updates** - **COMPLETED** (Phase 2: 3/6 tasks)
+- 📍 **Next Up**: Task 2.4 - Purchase Conversion Optimistic Updates
 
 ## Overview
 Current flow: `User Action → API Call → Full Page Refresh`  
@@ -129,23 +130,24 @@ Target flow: `User Action → Immediate UI Update → Background API Call → Se
 
 ---
 
-### Task 2.3: Remove Game Optimistic Updates
-**Assignee**: _TBD_  
+### Task 2.3: Remove Game Optimistic Updates ✅ **COMPLETED**
+**Assignee**: Cascade AI  
 **Estimate**: 4 hours  
 **Priority**: HIGH
 
 **Description**: Convert remove operations (wishlist/collection) to use optimistic updates.
 
 **Acceptance Criteria**:
-- [ ] Update remove from wishlist to immediately hide game card
-- [ ] Update remove from collection to immediately hide game card
-- [ ] Implement rollback if API fails (restore the hidden card)
-- [ ] Update totals display immediately
-- [ ] Update result counts immediately
-- [ ] Close confirmation modals immediately after action
+- [x] Update remove from wishlist to immediately hide game card
+- [x] Update remove from collection to immediately hide game card
+- [x] Implement rollback if API fails (restore the hidden card)
+- [x] Update totals display immediately
+- [x] Update result counts immediately
+- [x] Close confirmation modals immediately after action
 
-**Files to Modify**:
-- `static/js/main.js` (remove functions)
+**Files Modified**:
+- Updated `static/js/main.js` with `removeFromWishlistOptimistic` and `removeFromCollectionOptimistic` functions
+- Modified `app/templates/index.html` to use optimistic removal functions
 
 **Dependencies**: Task 1.1, Task 1.2
 

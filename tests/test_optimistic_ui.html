@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimistic UI Test Suite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .test-pass { background: #d4edda; color: #155724; }
+        .test-fail { background: #f8d7da; color: #721c24; }
+        .test-pending { background: #fff3cd; color: #856404; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        #testResults { margin-top: 20px; }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat {
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            flex: 1;
+            text-align: center;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Optimistic UI Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="runUnitTests()">Run Unit Tests</button>
+        <button onclick="runIntegrationTests()">Run Integration Tests</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Statistics</h2>
+        <div class="stats">
+            <div class="stat">
+                <h3 id="totalTests">0</h3>
+                <p>Total Tests</p>
+            </div>
+            <div class="stat">
+                <h3 id="passedTests" style="color: green;">0</h3>
+                <p>Passed</p>
+            </div>
+            <div class="stat">
+                <h3 id="failedTests" style="color: red;">0</h3>
+                <p>Failed</p>
+            </div>
+            <div class="stat">
+                <h3 id="pendingTests" style="color: orange;">0</h3>
+                <p>Pending</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <!-- Mock DOM elements for testing -->
+    <div style="display: none;">
+        <table id="collectionTable">
+            <tbody></tbody>
+        </table>
+        <div id="resultCount"></div>
+        <div id="removeWishlistModal" data-game-id="" data-game-name="" data-game-console=""></div>
+        <div id="removeFromCollectionModal" data-game-id="" data-game-name="" data-game-console="" data-purchased-game-id=""></div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="../app/static/js/state-manager.js"></script>
+    <script src="../app/static/js/error-handler.js"></script>
+    <script src="../app/static/js/optimistic-updater.js"></script>
+    <script src="../app/static/js/main.js"></script>
+
+    <script>
+        // Test framework
+        class TestRunner {
+            constructor() {
+                this.results = [];
+                this.stats = { total: 0, passed: 0, failed: 0, pending: 0 };
+            }
+
+            async runTest(name, testFn) {
+                this.stats.total++;
+                const result = { name, status: 'pending', error: null, time: 0 };
+                
+                try {
+                    const startTime = performance.now();
+                    await testFn();
+                    result.time = performance.now() - startTime;
+                    result.status = 'pass';
+                    this.stats.passed++;
+                } catch (error) {
+                    result.status = 'fail';
+                    result.error = error.message || error;
+                    this.stats.failed++;
+                }
+                
+                this.results.push(result);
+                this.renderResult(result);
+                this.updateStats();
+                return result;
+            }
+
+            renderResult(result) {
+                const resultsDiv = document.getElementById('testResults');
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `test-result test-${result.status}`;
+                
+                let content = `<strong>${result.name}</strong> - ${result.status.toUpperCase()}`;
+                if (result.time) {
+                    content += ` (${result.time.toFixed(2)}ms)`;
+                }
+                if (result.error) {
+                    content += `<br><pre>${result.error}</pre>`;
+                }
+                
+                resultDiv.innerHTML = content;
+                resultsDiv.appendChild(resultDiv);
+            }
+
+            updateStats() {
+                document.getElementById('totalTests').textContent = this.stats.total;
+                document.getElementById('passedTests').textContent = this.stats.passed;
+                document.getElementById('failedTests').textContent = this.stats.failed;
+                document.getElementById('pendingTests').textContent = this.stats.pending;
+            }
+
+            clear() {
+                this.results = [];
+                this.stats = { total: 0, passed: 0, failed: 0, pending: 0 };
+                document.getElementById('testResults').innerHTML = '';
+                this.updateStats();
+            }
+        }
+
+        const testRunner = new TestRunner();
+
+        // Assertion helpers
+        function assert(condition, message) {
+            if (!condition) {
+                throw new Error(message || 'Assertion failed');
+            }
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(message || `Expected ${expected}, got ${actual}`);
+            }
+        }
+
+        function assertNotNull(value, message) {
+            if (value === null || value === undefined) {
+                throw new Error(message || 'Value is null or undefined');
+            }
+        }
+
+        // Mock fetch for testing
+        let fetchMock = null;
+        const originalFetch = window.fetch;
+
+        function mockFetch(responseMap) {
+            fetchMock = responseMap;
+            window.fetch = async (url, options) => {
+                const key = `${options?.method || 'GET'} ${url}`;
+                const mockResponse = fetchMock[key];
+                
+                if (mockResponse) {
+                    return {
+                        ok: mockResponse.ok !== false,
+                        status: mockResponse.status || 200,
+                        json: async () => mockResponse.data,
+                        text: async () => JSON.stringify(mockResponse.data)
+                    };
+                }
+                
+                return originalFetch(url, options);
+            };
+        }
+
+        function restoreFetch() {
+            window.fetch = originalFetch;
+            fetchMock = null;
+        }
+
+        // Unit Tests
+        async function runUnitTests() {
+            console.log('Running Unit Tests...');
+            
+            // Test GameStateManager
+            await testRunner.runTest('GameStateManager: Add and retrieve game', () => {
+                const game = { id: 1, name: 'Test Game', console: 'N64' };
+                window.gameStateManager.addGame(game);
+                const retrieved = window.gameStateManager.getGame(1);
+                assertEqual(retrieved.name, 'Test Game');
+                window.gameStateManager.removeGame(1);
+            });
+
+            await testRunner.runTest('GameStateManager: Update existing game', () => {
+                const game = { id: 2, name: 'Original', console: 'N64' };
+                window.gameStateManager.addGame(game);
+                
+                const updated = { id: 2, name: 'Updated', console: 'N64' };
+                window.gameStateManager.updateGame(updated);
+                
+                const retrieved = window.gameStateManager.getGame(2);
+                assertEqual(retrieved.name, 'Updated');
+                window.gameStateManager.removeGame(2);
+            });
+
+            await testRunner.runTest('GameStateManager: Remove game', () => {
+                const game = { id: 3, name: 'To Remove', console: 'N64' };
+                window.gameStateManager.addGame(game);
+                
+                const removed = window.gameStateManager.removeGame(3);
+                assert(removed, 'Game should be removed');
+                
+                const retrieved = window.gameStateManager.getGame(3);
+                assert(retrieved === null, 'Game should not exist after removal');
+            });
+
+            await testRunner.runTest('GameStateManager: Pending operations', () => {
+                window.gameStateManager.setPendingOperation(4, 'test_op', { test: true });
+                const pending = window.gameStateManager.getPendingOperation(4);
+                
+                assertNotNull(pending);
+                assertEqual(pending.operation, 'test_op');
+                
+                window.gameStateManager.clearPendingOperation(4);
+                const cleared = window.gameStateManager.getPendingOperation(4);
+                assert(cleared === null, 'Pending operation should be cleared');
+            });
+
+            // Test OptimisticUpdater
+            await testRunner.runTest('OptimisticUpdater: Has required methods', () => {
+                assert(typeof window.optimisticUpdater.applyOptimisticUpdate === 'function');
+                assert(typeof window.optimisticUpdater.confirmUpdate === 'function');
+                assert(typeof window.optimisticUpdater.rollbackUpdate === 'function');
+            });
+
+            // Test main.js functions
+            await testRunner.runTest('Main.js: createGameRow creates valid element', () => {
+                const game = {
+                    id: 5,
+                    name: 'Mario Kart 64',
+                    console: 'Nintendo 64',
+                    current_price: 39.99
+                };
+                
+                const row = window.createGameRow(game, false);
+                assert(row instanceof HTMLElement, 'Should return HTML element');
+                assertEqual(row.dataset.gameId, '5');
+                assert(row.querySelector('.game-name').textContent === 'Mario Kart 64');
+            });
+
+            await testRunner.runTest('Main.js: updateResultCount modifies display', () => {
+                const resultCount = document.getElementById('resultCount');
+                resultCount.innerHTML = 'Showing 1-10 of 20 results';
+                
+                window.updateResultCount(1);
+                assert(resultCount.innerHTML.includes('21'), 'Should increment total');
+            });
+        }
+
+        // Integration Tests
+        async function runIntegrationTests() {
+            console.log('Running Integration Tests...');
+            
+            // Test Add to Wishlist Optimistic
+            await testRunner.runTest('Add to Wishlist: Optimistic update succeeds', async () => {
+                mockFetch({
+                    'POST /api/wishlist/add': {
+                        ok: true,
+                        data: {
+                            game: {
+                                id: 100,
+                                name: 'GoldenEye 007',
+                                console: 'N64',
+                                current_price: 29.99
+                            }
+                        }
+                    }
+                });
+
+                const gameData = {
+                    url: 'https://www.pricecharting.com/game/nintendo-64/goldeneye-007',
+                    condition: 'CIB'
+                };
+
+                await window.addToWishlistOptimistic(gameData);
+                
+                // Check that game was added to state
+                const game = window.gameStateManager.getGame(100);
+                assertNotNull(game, 'Game should be in state manager');
+                assertEqual(game.name, 'GoldenEye 007');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(100);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Add to Wishlist: Rollback on failure', async () => {
+                mockFetch({
+                    'POST /api/wishlist/add': {
+                        ok: false,
+                        status: 500,
+                        data: { error: 'Server error' }
+                    }
+                });
+
+                const gameData = {
+                    url: 'https://www.pricecharting.com/game/nintendo-64/perfect-dark',
+                    condition: 'CIB'
+                };
+
+                try {
+                    await window.addToWishlistOptimistic(gameData);
+                    throw new Error('Should have thrown error');
+                } catch (error) {
+                    // Expected to fail
+                }
+                
+                // Check that temporary game was removed
+                const games = window.gameStateManager.getAllGames();
+                const tempGame = games.find(g => g.id && g.id.toString().startsWith('temp_'));
+                assert(!tempGame, 'Temporary game should be rolled back');
+                
+                restoreFetch();
+            });
+
+            // Test Remove from Wishlist Optimistic
+            await testRunner.runTest('Remove from Wishlist: Optimistic update succeeds', async () => {
+                // First add a game to state
+                const game = { id: 200, name: 'Banjo-Kazooie', console: 'N64' };
+                window.gameStateManager.addGame(game);
+                
+                mockFetch({
+                    'DELETE /api/wishlist/200/remove': {
+                        ok: true,
+                        data: { message: 'Game removed' }
+                    }
+                });
+
+                await window.removeFromWishlistOptimistic(200, 'Banjo-Kazooie', 'N64');
+                
+                // Check that game was removed from state
+                const removed = window.gameStateManager.getGame(200);
+                assert(removed === null, 'Game should be removed from state');
+                
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Remove from Wishlist: Rollback on failure', async () => {
+                // Add a game to state
+                const game = { id: 201, name: 'Star Fox 64', console: 'N64' };
+                window.gameStateManager.addGame(game);
+                
+                mockFetch({
+                    'DELETE /api/wishlist/201/remove': {
+                        ok: false,
+                        status: 404,
+                        data: { error: 'Game not found' }
+                    }
+                });
+
+                try {
+                    await window.removeFromWishlistOptimistic(201, 'Star Fox 64', 'N64');
+                    throw new Error('Should have thrown error');
+                } catch (error) {
+                    // Expected to fail
+                }
+                
+                // Check that game was restored to state
+                const restored = window.gameStateManager.getGame(201);
+                assertNotNull(restored, 'Game should be restored to state');
+                assertEqual(restored.name, 'Star Fox 64');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(201);
+                restoreFetch();
+            });
+
+            // Test Add to Collection Optimistic
+            await testRunner.runTest('Add to Collection: Optimistic update succeeds', async () => {
+                mockFetch({
+                    'POST /api/collection/add': {
+                        ok: true,
+                        data: {
+                            game: {
+                                id: 300,
+                                purchased_game_id: 300,
+                                name: 'Mario Party',
+                                console: 'N64',
+                                purchase_price: 44.99,
+                                current_price: 54.99
+                            }
+                        }
+                    }
+                });
+
+                const gameData = {
+                    url: 'https://www.pricecharting.com/game/nintendo-64/mario-party',
+                    condition: 'CIB',
+                    purchase_price: 44.99,
+                    purchase_date: '2024-01-01'
+                };
+
+                await window.addToCollectionOptimistic(gameData);
+                
+                // Check that game was added to state
+                const game = window.gameStateManager.getGame(300);
+                assertNotNull(game, 'Game should be in state manager');
+                assertEqual(game.name, 'Mario Party');
+                assertEqual(game.purchase_price, 44.99);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(300);
+                restoreFetch();
+            });
+
+            // Test Remove from Collection Optimistic
+            await testRunner.runTest('Remove from Collection: Optimistic update succeeds', async () => {
+                // First add a game to state
+                const game = {
+                    id: 400,
+                    purchased_game_id: 400,
+                    name: 'Donkey Kong 64',
+                    console: 'N64',
+                    purchase_price: 19.99
+                };
+                window.gameStateManager.addGame(game);
+                
+                mockFetch({
+                    'DELETE /api/purchased_game/400/remove_from_collection': {
+                        ok: true,
+                        data: { message: 'Game removed from collection' }
+                    }
+                });
+
+                await window.removeFromCollectionOptimistic(400, 400, 'Donkey Kong 64', 'N64');
+                
+                // Check that game was removed from state
+                const removed = window.gameStateManager.getGame(400);
+                assert(removed === null, 'Game should be removed from state');
+                
+                restoreFetch();
+            });
+        }
+
+        // Run all tests
+        async function runAllTests() {
+            testRunner.clear();
+            await runUnitTests();
+            await runIntegrationTests();
+            
+            console.log('Test run complete!');
+            console.log(`Total: ${testRunner.stats.total}, Passed: ${testRunner.stats.passed}, Failed: ${testRunner.stats.failed}`);
+        }
+
+        function clearResults() {
+            testRunner.clear();
+        }
+
+        // Auto-run tests on load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Test suite loaded. Click "Run All Tests" to begin.');
+        });
+    </script>
+</body>
+</html>
