@@ -4,13 +4,23 @@ A web interface for managing and tracking video game collections, designed for s
 
 ## Features
 
-- Game collection management
-- Price tracking and updates
-- Wishlist functionality
-- Responsive web interface
-- SQLite database persistence
-- **Automated S3 database backups**
-- Self-hosted deployment ready
+### ✨ **Phase 2 Complete - Full Optimistic UI Experience**
+- **Zero page refreshes**: All major operations provide immediate visual feedback
+- **Optimistic updates**: Add, edit, remove, purchase conversion, and lent status changes happen instantly
+- **Smart rollback**: Automatic error handling restores UI state if API calls fail
+- **Real-time state management**: Client-side state keeps UI perfectly in sync
+
+### Core Functionality
+- **Game collection management**: Add, edit, remove games from your collection
+- **Wishlist functionality**: Track games you want to purchase with price monitoring
+- **Purchase conversion**: Seamlessly convert wishlist items to owned games
+- **Lent status tracking**: Keep track of games you've lent out to friends
+- **Price tracking and updates**: Automatic price monitoring from PriceCharting.com
+- **Comprehensive testing**: 40+ test cases ensure reliability
+- **Responsive web interface**: Works perfectly on desktop and mobile
+- **SQLite database persistence**: Reliable local data storage
+- **Automated S3 database backups**: Never lose your data
+- **Self-hosted deployment ready**: Full Ubuntu deployment automation
 
 ## Setup
 
@@ -36,14 +46,26 @@ cp .env.example .env
 python3 application.py
 ```
 
+5. Run tests to verify everything works:
+```bash
+python run_tests.py  # Backend tests
+# Open tests/test_optimistic_ui.html in browser for frontend tests
+```
+
 ## Development
 
-The application uses:
-- Flask 3.0.0 for the web framework
-- SQLite for database persistence
-- Jinja2 for templating
-- Boto3 for AWS S3 integration
-- Gunicorn for production deployment
+### Technology Stack
+- **Backend**: Flask 3.0.0 web framework with service layer architecture
+- **Frontend**: Vanilla JavaScript with optimistic UI system
+  - State management (`static/js/state-manager.js`)
+  - Optimistic updater framework (`static/js/optimistic-updater.js`)
+  - Error handling system (`static/js/error-handler.js`)
+  - All operations implemented in `static/js/main.js`
+- **Database**: SQLite with direct queries (no ORM)
+- **Templates**: Jinja2 with progressive enhancement
+- **Testing**: pytest (backend) + custom test runner (frontend)
+- **Deployment**: Gunicorn + systemd service
+- **Backups**: Boto3 for AWS S3 integration
 
 ## Deployment
 
@@ -98,20 +120,27 @@ collecting-website/
 ├── .github/              # GitHub Actions workflows
 ├── app/                  # Application code
 │   ├── __init__.py       # App initialization
-│   ├── routes.py         # URL routes and views
+│   ├── routes.py         # API routes and views (40+ endpoints)
+│   ├── *_service.py      # Service layer (collection, wishlist, pricecharting)
 │   ├── price_retrieval.py # Price update functionality
 │   ├── templates/        # Jinja2 templates
-│   └── static/           # CSS, JS, and assets
+│   │   └── index.html    # Main UI with optimistic updates
+│   └── static/js/        # Optimistic UI system
+│       ├── state-manager.js      # Client-side state management
+│       ├── optimistic-updater.js # Optimistic update framework
+│       ├── error-handler.js      # Error handling system
+│       └── main.js              # All optimistic operations
+├── tests/                # Comprehensive test suite
+│   ├── test_optimistic_ui.py   # Backend tests (22 test cases)
+│   └── test_optimistic_ui.html # Frontend tests (25+ test cases)
 ├── backup_to_s3.py       # S3 backup script
-├── setup-backup-cron.sh  # Backup cron job setup
-├── setup-aws-credentials.sh # AWS credentials setup
-├── deploy-local-simple.sh # Local deployment script
-├── deploy-github-actions.sh # GitHub Actions deployment
+├── CLAUDE.md            # Development guidance
+├── OPTIMISTIC_UI_IMPLEMENTATION_PLAN.md # Phase 2 complete!
+├── deploy-*.sh          # Deployment scripts
 ├── wsgi.py              # WSGI entry point
 ├── config.py            # Configuration settings
 ├── requirements.txt     # Python dependencies
-├── BACKUP_SETUP.md      # Backup system documentation
-└── README.md
+└── Documentation files (*.md)
 ```
 
 ## Requirements

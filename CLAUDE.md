@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Last Updated**: August 2025  
+**Current Version**: Phase 2 Complete - Full Optimistic UI Implementation
+
 ## Common Development Commands
 
 ### Running the Application
@@ -70,11 +73,14 @@ This is a Flask-based web application for managing video game collections with t
      - `games_for_sale`: Items marked for sale
    - No ORM - uses direct SQLite connections with context managers
 
-4. **Frontend Architecture**
-   - Server-side rendering with Jinja2 templates
-   - Progressive enhancement with vanilla JavaScript
-   - Optimistic UI updates in `static/js/optimistic-updater.js`
-   - State management in `static/js/state-manager.js`
+4. **Frontend Architecture** (✅ **Fully Optimistic UI - Phase 2 Complete**)
+   - Server-side rendering with Jinja2 templates with progressive enhancement
+   - **Optimistic UI System**: Immediate user feedback with background API calls
+     - `static/js/state-manager.js`: Client-side game state management
+     - `static/js/optimistic-updater.js`: Optimistic update framework with rollback
+     - `static/js/error-handler.js`: Centralized error handling and notifications
+     - `static/js/main.js`: All optimistic operation implementations
+   - **Zero page refreshes** for all major operations (add, edit, remove, purchase, lent status)
    - Service worker for offline support
 
 5. **API Design**
@@ -121,28 +127,67 @@ This is a Flask-based web application for managing video game collections with t
 - Input validation on all user-submitted data
 - No direct SQL string concatenation (parameterized queries)
 
+### Optimistic UI System Details
+
+**Key Operations with Optimistic Updates**:
+1. **Add Games**: `addToWishlistOptimistic()`, `addToCollectionOptimistic()`
+2. **Remove Games**: `removeFromWishlistOptimistic()`, `removeFromCollectionOptimistic()`
+3. **Purchase Conversion**: `purchaseWishlistGameOptimistic()`
+4. **Lent Status**: `markGameAsLentOptimistic()`, `unmarkGameAsLentOptimistic()`
+5. **Edit Details**: `editGameDetailsOptimistic()`
+6. **Sale Status**: `markGameForSaleOptimistic()`, `unmarkGameForSaleOptimistic()`
+
+**Optimistic Update Pattern**:
+```javascript
+// 1. Immediate UI update
+const uiUpdateFn = () => { /* Update DOM immediately */ };
+
+// 2. Background API call
+const apiFn = async () => { /* Make API request */ };
+
+// 3. Rollback on failure
+const rollbackFn = () => { /* Restore previous state */ };
+
+// 4. Apply optimistic update
+await optimisticUpdater.applyOptimisticUpdate(id, operation, uiUpdateFn, apiFn, {
+    rollbackFn, onSuccess, onError
+});
+```
+
+**State Management**:
+- `GameStateManager`: Centralized client-side state for all games
+- Maintains consistency between DOM, state manager, and server
+- Supports pending operations tracking for conflict resolution
+
 ### Testing Strategy
 
-**Backend Tests**:
-- Location: `tests/test_optimistic_ui.py`
-- Framework: pytest with coverage reporting
-- Test categories: API endpoints, error handling, rollback scenarios, concurrent operations
-- Run with: `python run_tests.py` or `pytest tests/`
-- Coverage goal: 40%+ with focus on critical paths
+**Backend Tests** (Location: `tests/test_optimistic_ui.py`):
+- Framework: pytest with coverage reporting and Flask test client
+- Test categories: 
+  - API endpoints (add, edit, remove, purchase, lent status)
+  - Error handling and validation
+  - Rollback scenarios and concurrent operations
+- Run with: `python run_tests.py` (requires virtual environment activation)
+- Current coverage: 50%+ with focus on critical paths
+- **22 test cases** covering all optimistic operations
 
-**Frontend Tests**:
-- Location: `tests/test_optimistic_ui.html` 
-- Framework: Custom test runner with mock fetch
-- Test categories: State management, optimistic updates, UI interactions, rollbacks
-- Run by: Opening HTML file in browser
-- Includes mocked API responses for isolated testing
+**Frontend Tests** (Location: `tests/test_optimistic_ui.html`):
+- Framework: Custom test runner with mock fetch capabilities
+- Test categories:
+  - State management unit tests (GameStateManager, OptimisticUpdater)  
+  - Optimistic update integration tests with mocked APIs
+  - UI manipulation verification
+  - Rollback scenario testing
+- Run by: Opening HTML file in browser and clicking "Run All Tests"
+- **25+ test cases** with success/failure scenarios for all operations
 
 **Integration Testing**:
-- Tests cover full optimistic update flow (UI → API → Database)
-- Rollback scenarios verify proper error handling
+- Tests cover complete optimistic update flow: UI → State → API → Database
+- Rollback scenarios verify proper error handling and state restoration
 - Concurrent operation tests ensure race condition handling
+- DOM manipulation verification ensures UI consistency
 
 **CI/CD Integration**:
 - GitHub Actions runs backend tests before deployment
-- Tests must pass before merging changes
-- Coverage reports generated automatically
+- Tests must pass before merging changes  
+- Coverage reports generated automatically with htmlcov output
