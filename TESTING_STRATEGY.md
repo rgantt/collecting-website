@@ -187,28 +187,101 @@ const mockResponses = {
 - **Edge Cases**: Invalid URLs, missing data, malformed responses
 - **State Transitions**: Complete lifecycle testing (wishlist → collection → lent → sale)
 
-## Identified Test Gaps & Recommendations
+## Identified Test Gaps & Phase 3 Preparation
 
-### Current Gaps (Medium Priority)
+### Current Gaps (Medium Priority - Address during Phase 3)
 1. **Price Update Operations**: No tests for manual price refresh functionality
 2. **Condition Updates**: Missing tests for condition change operations  
 3. **Mark for Sale**: No optimistic UI tests for sale status changes
 4. **Pagination**: No tests for paginated results handling
 5. **Search/Filtering**: No tests for dynamic filtering functionality
 
-### Recommended Additional Tests
+### Phase 3 Specific Testing Requirements
+As we move into Phase 3 (Background Refresh System), we need to add:
+
+#### **Task 3.1: Selective Game Data Refresh Testing**
+- ✅ **Plan**: Create `test_selective_refresh.py` test suite
+- **Coverage Needed**:
+  - `refreshGame(gameId)` function testing
+  - New `/api/game/<id>` endpoint validation
+  - Differential update logic (only change what's different)
+  - Background refresh after optimistic operations
+  - Handling deleted/moved games between sections
+
+#### **Task 3.2: Batch Refresh Operations Testing**
+- ✅ **Plan**: Extend refresh test suite
+- **Coverage Needed**:
+  - `refreshMultipleGames(gameIds)` function testing
+  - Batch API endpoint `/api/games/batch-refresh`
+  - Debouncing logic for rapid successive operations
+  - Network efficiency optimization
+  - Memory usage with large batch operations
+
+#### **Data Consistency Testing**
+- **State Synchronization**: Optimistic state vs server state conflicts
+- **Conflict Resolution**: When server data differs from client state
+- **Race Condition Handling**: Background refresh during user operations
+- **Network Failures**: Background refresh timeout and retry logic
+
+#### **Performance Testing for Background Operations**
+- **Non-blocking Refresh**: Ensure UI remains responsive during background calls
+- **API Call Optimization**: Minimize redundant refresh requests
+- **Memory Management**: Long-running sessions with frequent refreshes
+- **Network Efficiency**: Bandwidth usage with background operations
+
+### Recommended Test Implementation Schedule
+
+#### **Phase 3.1 Testing (Task 3.1 Implementation)**
+```python
+# tests/test_selective_refresh.py - NEW FILE
+class TestSelectiveGameRefresh:
+    def test_refresh_single_game_success(self, client):
+        """Test refreshGame() with valid game ID"""
+        
+    def test_refresh_game_api_endpoint(self, client):
+        """Test new GET /api/game/<id> endpoint"""
+        
+    def test_differential_update_logic(self, client):
+        """Test only changed fields are updated"""
+        
+    def test_background_refresh_after_optimistic_update(self, client):
+        """Test automatic refresh triggers after operations"""
+        
+    def test_refresh_deleted_game_handling(self, client):
+        """Test handling when game no longer exists"""
+```
+
+#### **Phase 3.2 Testing (Task 3.2 Implementation)**
+```javascript
+// Frontend tests in test_optimistic_ui.html
+// Add to Integration Tests section:
+await testRunner.runTest('Batch Refresh: Multiple games succeed', async () => {
+    // Test refreshMultipleGames() with array of IDs
+});
+
+await testRunner.runTest('Batch Refresh: Debouncing works correctly', async () => {
+    // Test rapid calls are debounced properly
+});
+```
+
+#### **Integration Testing Enhancements**
+- **End-to-End Flow**: Optimistic Update → Background Refresh → State Sync
+- **Error Recovery**: Background refresh failures don't break optimistic state
+- **User Experience**: Background activity doesn't interfere with user actions
+
+### Legacy Testing Enhancements (Lower Priority)
 1. **Integration with PriceCharting Service**: End-to-end web scraping tests
 2. **S3 Backup System**: Backup/restore functionality testing
 3. **Session Management**: Long-running session stability
 4. **Browser Storage**: LocalStorage persistence testing
 5. **Offline Functionality**: Service worker caching tests
 
-### Performance Testing Enhancements
-1. **Database Query Optimization**: N+1 query detection
-2. **Memory Leak Detection**: Extended runtime monitoring  
-3. **API Response Time**: SLA compliance testing (< 200ms)
-4. **Client-Side Memory**: GameStateManager growth limits
-5. **Bundle Size**: JavaScript payload optimization
+### Performance Testing Enhancements for Phase 3
+1. **Background Refresh Efficiency**: Measure refresh operation speed
+2. **Network Usage**: Monitor API call frequency and payload size
+3. **Memory Usage**: Background operations shouldn't cause memory leaks
+4. **UI Responsiveness**: Background activity doesn't block user interactions
+5. **Battery Usage**: Efficient background operations on mobile devices
 
 ## Testing Tools & Infrastructure
 
@@ -247,7 +320,7 @@ const mockResponses = {
 - **User Behavior**: Operation success rates
 - **API Health**: Endpoint availability and response times
 
-## Conclusion
+## Conclusion & Phase 3 Readiness
 
 The current testing strategy provides comprehensive coverage for Phase 2's optimistic UI implementation. With 22 backend tests and 30+ frontend tests, we have strong confidence in:
 
@@ -257,6 +330,31 @@ The current testing strategy provides comprehensive coverage for Phase 2's optim
 - ✅ **User Experience**: Professional, responsive interaction patterns
 - ✅ **Data Integrity**: State consistency across client and server
 
-**Recommendation**: The current test suite provides excellent foundation for Phase 3 development. The identified test gaps are medium priority and can be addressed during Phase 3 implementation without blocking progress.
+### Phase 3 Development Plan
 
-**Ready for Phase 3**: ✅ **All green lights for background refresh system development**
+**Current Status**: ✅ **Ready to begin Phase 3 development**
+
+**Testing Strategy for Phase 3**:
+1. **Test-Driven Development**: Create tests for Phase 3 features before implementation
+2. **Incremental Testing**: Add refresh tests alongside Task 3.1 and 3.2 implementation  
+3. **Backwards Compatibility**: Ensure existing optimistic UI tests continue passing
+4. **Performance Monitoring**: Add performance benchmarks for background operations
+
+**Immediate Next Steps**:
+1. Begin Phase 3 Task 3.1 implementation
+2. Create `tests/test_selective_refresh.py` alongside development
+3. Add background refresh frontend tests to `test_optimistic_ui.html`
+4. Monitor existing test suite for any regressions
+
+**Risk Mitigation**: 
+- The solid Phase 2 test foundation minimizes risk for Phase 3 development
+- Comprehensive rollback testing ensures system stability
+- Existing error handling patterns will extend naturally to background operations
+
+**Success Metrics for Phase 3**:
+- All Phase 2 tests remain passing (22 backend + 30+ frontend)
+- New refresh functionality achieves 80%+ test coverage
+- Background operations don't impact UI responsiveness
+- Data consistency maintained between optimistic and server state
+
+**Ready for Phase 3**: ✅ **All green lights for background refresh system development with comprehensive test coverage plan**
