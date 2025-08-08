@@ -16,7 +16,8 @@
       "Bash(curl:*)",
       "Bash(kill:*)",
       "Bash(lsof:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

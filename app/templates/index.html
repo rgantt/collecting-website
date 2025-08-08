@@ -1174,41 +1174,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Phase 1: Optimistic UI Infrastructure -->
+    <!-- JavaScript Dependencies -->
     <script src="{{ url_for('static', filename='js/state-manager.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/optimistic-updater.js') }}"></script>
     <script src="{{ url_for('static', filename='js/error-handler.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('Initializing collection manager...');
-            
-            // Phase 1: Validate optimistic UI infrastructure
-            console.log('🚀 Phase 1 Infrastructure Status:');
-            
-            // Check if global instances are available
-            if (typeof window.gameStateManager !== 'undefined') {
-                console.log('✅ GameStateManager loaded successfully');
-            } else {
-                console.error('❌ GameStateManager failed to load');
-            }
-            
-            if (typeof window.optimisticUpdater !== 'undefined') {
-                console.log('✅ OptimisticUpdater loaded successfully');
-            } else {
-                console.error('❌ OptimisticUpdater failed to load');
-            }
-            
-            if (typeof window.errorHandler !== 'undefined') {
-                console.log('✅ ErrorHandler loaded successfully');
-                // Show a test toast to confirm error handling is working
-                setTimeout(() => {
-                    window.errorHandler.showInfoToast('Phase 1 infrastructure loaded successfully! 🎉');
-                }, 1000);
-            } else {
-                console.error('❌ ErrorHandler failed to load');
-            }
             
             // Add global testing functions for validation
             window.testPhase1 = {

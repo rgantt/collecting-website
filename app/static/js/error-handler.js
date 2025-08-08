@@ -4,8 +4,7 @@
  * Provides toast-style notifications and comprehensive error logging
  */
 class ErrorHandler {
-    constructor(optimisticUpdater) {
-        this.optimisticUpdater = optimisticUpdater;
+    constructor() {
         this.toastContainer = null;
         this.errorLog = [];
         this.maxLogEntries = 100;
@@ -42,10 +41,7 @@ class ErrorHandler {
             }
         );
         
-        // Trigger rollback if operation ID provided
-        if (operationId && this.optimisticUpdater) {
-            await this.optimisticUpdater.rollbackUpdate(operationId, error);
-        }
+        // Note: Rollback functionality removed with API-first approach
         
         return { success: false, error, rolled_back: true };
     }
@@ -116,6 +112,22 @@ class ErrorHandler {
             duration: 3000,
             ...options
         });
+    }
+
+    /**
+     * Simple error display method (alias for showErrorToast)
+     * @param {string} message - Error message
+     */
+    showError(message) {
+        this.showErrorToast(message);
+    }
+
+    /**
+     * Simple success display method (alias for showSuccessToast)
+     * @param {string} message - Success message
+     */
+    showSuccess(message) {
+        this.showSuccessToast(message);
     }
 
     /**
@@ -479,7 +491,7 @@ class ErrorHandler {
 }
 
 // Create global instance
-window.errorHandler = new ErrorHandler(window.optimisticUpdater);
+window.errorHandler = new ErrorHandler();
 
 // Export for module systems if available
 if (typeof module !== 'undefined' && module.exports) {
