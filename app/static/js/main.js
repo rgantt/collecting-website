@@ -1493,9 +1493,9 @@
                 console.log('⚠️ Game not in client state, adding:', gameId);
                 // Game exists on server but not in client state - add it
                 window.gameStateManager.addGame(freshGameData);
-                // For now, just trigger a page refresh when games are added
-                // In a future version we could implement dynamic game row creation
-                console.log('ℹ️ New game detected, refresh recommended');
+                // Game was added elsewhere - simply add to client state
+                // The optimistic UI system handles all game additions via optimistic operations
+                console.log('ℹ️ New game detected and added to client state');
                 return freshGameData;
             }
             
