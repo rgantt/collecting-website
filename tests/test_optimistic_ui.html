@@ -711,6 +711,141 @@
                 
                 restoreFetch();
             });
+
+            // Test Edit Game Details Optimistic
+            await testRunner.runTest('Edit Game Details: Optimistic update succeeds', async () => {
+                // Add a game to state first
+                const originalGame = { 
+                    id: 500, 
+                    name: 'Original Game Name', 
+                    console: 'Original Console',
+                    is_wanted: false 
+                };
+                window.gameStateManager.addGame(originalGame);
+                
+                mockFetch({
+                    'PUT /api/game/500/details': {
+                        ok: true,
+                        data: { 
+                            message: 'Game details updated successfully',
+                            name: 'Updated Game Name',
+                            console: 'Updated Console'
+                        }
+                    }
+                });
+
+                await window.editGameDetailsOptimistic(500, 'Updated Game Name', 'Updated Console');
+                
+                // Check that game details were updated in state
+                const updatedGame = window.gameStateManager.getGame(500);
+                assertNotNull(updatedGame, 'Game should still be in state manager');
+                assertEqual(updatedGame.name, 'Updated Game Name');
+                assertEqual(updatedGame.console, 'Updated Console');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(500);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Edit Game Details: Rollback on failure', async () => {
+                // Add a game to state first
+                const originalGame = { 
+                    id: 510, 
+                    name: 'Original Game Name', 
+                    console: 'Original Console',
+                    is_wanted: false 
+                };
+                window.gameStateManager.addGame(originalGame);
+                
+                mockFetch({
+                    'PUT /api/game/510/details': {
+                        ok: false,
+                        status: 400,
+                        data: { error: 'Game name is required' }
+                    }
+                });
+
+                try {
+                    await window.editGameDetailsOptimistic(510, '', 'Some Console');
+                    throw new Error('Should have thrown error');
+                } catch (error) {
+                    // Expected to fail
+                }
+                
+                // Check that game details were restored to original values
+                const restoredGame = window.gameStateManager.getGame(510);
+                assertNotNull(restoredGame, 'Game should still be in state manager');
+                assertEqual(restoredGame.name, 'Original Game Name');
+                assertEqual(restoredGame.console, 'Original Console');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(510);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Edit Game Details: Handles missing game in state', async () => {
+                try {
+                    await window.editGameDetailsOptimistic(999, 'New Name', 'New Console');
+                    throw new Error('Should have thrown error');
+                } catch (error) {
+                    assert(error.message.includes('not found in state manager'), 
+                           'Should throw appropriate error for missing game');
+                }
+            });
+
+            await testRunner.runTest('Edit Game Details: Updates all UI locations', async () => {
+                // Add a game to state
+                const originalGame = { 
+                    id: 520, 
+                    name: 'Test Game', 
+                    console: 'Test Console',
+                    is_wanted: false 
+                };
+                window.gameStateManager.addGame(originalGame);
+                
+                // Create mock DOM elements
+                const tableRow = document.createElement('tr');
+                tableRow.className = 'game-row';
+                tableRow.dataset.gameId = '520';
+                
+                const nameCell = document.createElement('td');
+                nameCell.className = 'name-col';
+                nameCell.textContent = 'Test Game';
+                nameCell.title = 'Test Game';
+                
+                const consoleCell = document.createElement('td');
+                consoleCell.className = 'console-col';
+                consoleCell.textContent = 'Test Console';
+                consoleCell.title = 'Test Console';
+                
+                tableRow.appendChild(nameCell);
+                tableRow.appendChild(consoleCell);
+                document.body.appendChild(tableRow);
+                
+                mockFetch({
+                    'PUT /api/game/520/details': {
+                        ok: true,
+                        data: { 
+                            message: 'Game details updated successfully',
+                            name: 'Updated Test Game',
+                            console: 'Updated Test Console'
+                        }
+                    }
+                });
+
+                await window.editGameDetailsOptimistic(520, 'Updated Test Game', 'Updated Test Console');
+                
+                // Check that DOM elements were updated
+                assertEqual(nameCell.textContent, 'Updated Test Game');
+                assertEqual(nameCell.title, 'Updated Test Game');
+                assertEqual(consoleCell.textContent, 'Updated Test Console');
+                assertEqual(consoleCell.title, 'Updated Test Console');
+                
+                // Cleanup
+                document.body.removeChild(tableRow);
+                window.gameStateManager.removeGame(520);
+                restoreFetch();
+            });
         }
 
         // Run all tests

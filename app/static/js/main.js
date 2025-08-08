@@ -1254,6 +1254,180 @@
         }
     };
 
+    // Optimistic edit game details function
+    window.editGameDetailsOptimistic = async function(gameId, newName, newConsole) {
+        const tempId = `edit_${gameId}_${Date.now()}`;
+        const originalGame = window.gameStateManager.getGame(gameId);
+        
+        if (!originalGame) {
+            throw new Error(`Game with ID ${gameId} not found in state manager`);
+        }
+        
+        console.log('🎯 Starting optimistic edit details for:', gameId, newName, newConsole);
+        
+        // Create updated game object
+        const updatedGame = {
+            ...originalGame,
+            name: newName,
+            console: newConsole
+        };
+        
+        // UI update function - immediately update all locations where game details appear
+        const uiUpdateFn = () => {
+            console.log('📝 Applying optimistic edit details UI updates');
+            
+            // Update in state manager
+            window.gameStateManager.updateGame(updatedGame);
+            
+            // Update table row
+            const tableRow = document.querySelector(`tr.game-row[data-game-id="${gameId}"]`);
+            if (tableRow) {
+                const nameCell = tableRow.querySelector('.name-col');
+                const consoleCell = tableRow.querySelector('.console-col');
+                if (nameCell) {
+                    nameCell.textContent = newName;
+                    nameCell.title = newName;
+                }
+                if (consoleCell) {
+                    consoleCell.textContent = newConsole;
+                    consoleCell.title = newConsole;
+                }
+            }
+            
+            // Update expanded details view
+            const nameDisplay = document.querySelector(`[data-game-id="${gameId}"] .full-name`);
+            const consoleDisplay = document.getElementById(`console-display-${gameId}`);
+            
+            if (nameDisplay) {
+                nameDisplay.textContent = newName;
+            }
+            if (consoleDisplay) {
+                consoleDisplay.textContent = newConsole;
+            }
+            
+            // Update edit button data attributes
+            const editBtn = document.querySelector(`[data-game-id="${gameId}"].edit-details-btn`);
+            if (editBtn) {
+                editBtn.dataset.gameName = newName;
+                editBtn.dataset.gameConsole = newConsole;
+            }
+            
+            // Update modal data attributes if open
+            const modal = document.getElementById('editDetailsModal');
+            if (modal && modal.dataset.gameId === gameId.toString()) {
+                modal.dataset.gameName = newName;
+                modal.dataset.gameConsole = newConsole;
+            }
+            
+            // Update in allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = updatedGame;
+                }
+            }
+        };
+        
+        // API call function
+        const apiFn = async () => {
+            console.log('📡 Making edit details API call for:', gameId);
+            const response = await fetch(`/api/game/${gameId}/details`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: newName,
+                    console: newConsole
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update game details');
+            }
+            
+            return response.json();
+        };
+        
+        // Rollback function - restore original values
+        const rollbackFn = () => {
+            console.log('⏪ Rolling back edit details for:', gameId);
+            
+            // Restore in state manager
+            window.gameStateManager.updateGame(originalGame);
+            
+            // Restore table row
+            const tableRow = document.querySelector(`tr.game-row[data-game-id="${gameId}"]`);
+            if (tableRow) {
+                const nameCell = tableRow.querySelector('.name-col');
+                const consoleCell = tableRow.querySelector('.console-col');
+                if (nameCell) {
+                    nameCell.textContent = originalGame.name;
+                    nameCell.title = originalGame.name;
+                }
+                if (consoleCell) {
+                    consoleCell.textContent = originalGame.console;
+                    consoleCell.title = originalGame.console;
+                }
+            }
+            
+            // Restore expanded details view
+            const nameDisplay = document.querySelector(`[data-game-id="${gameId}"] .full-name`);
+            const consoleDisplay = document.getElementById(`console-display-${gameId}`);
+            
+            if (nameDisplay) {
+                nameDisplay.textContent = originalGame.name;
+            }
+            if (consoleDisplay) {
+                consoleDisplay.textContent = originalGame.console;
+            }
+            
+            // Restore edit button data attributes
+            const editBtn = document.querySelector(`[data-game-id="${gameId}"].edit-details-btn`);
+            if (editBtn) {
+                editBtn.dataset.gameName = originalGame.name;
+                editBtn.dataset.gameConsole = originalGame.console;
+            }
+            
+            // Restore in allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = originalGame;
+                }
+            }
+        };
+        
+        try {
+            const result = await window.optimisticUpdater.applyOptimisticUpdate(
+                tempId,
+                'edit_details',
+                uiUpdateFn,
+                apiFn,
+                {
+                    rollbackFn,
+                    onSuccess: (result) => {
+                        console.log('✅ Edit details completed successfully:', result);
+                        window.errorHandler.showSuccess('Game details updated successfully!');
+                    },
+                    onError: (error) => {
+                        console.error('❌ Edit details failed:', error);
+                        window.errorHandler.showError(
+                            'Failed to update game details: ' + 
+                            (error.message || 'An unexpected error occurred')
+                        );
+                    }
+                }
+            );
+            
+            return result;
+        } catch (error) {
+            console.error('Error in optimistic edit details:', error);
+            throw error;
+        }
+    };
+
     // Export functions for use in other scripts
     window.createGameRow = createGameRow;
     window.addGameRowToTable = addGameRowToTable;

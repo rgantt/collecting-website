@@ -396,6 +396,100 @@ class TestLentStatusOperations:
         assert 'error' in error_data
 
 
+class TestEditDetailsOperations:
+    """Test suite for edit game details optimistic operations"""
+    
+    def test_edit_details_success(self, client):
+        """Test successful edit game details operation"""
+        # First add a game to collection
+        add_response = client.post('/api/collection/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/super-mario-64',
+                'condition': 'CIB',
+                'purchase_price': 39.99
+            }
+        )
+        game_data = json.loads(add_response.data)
+        physical_game_id = game_data['game']['id']
+        
+        # Then edit the details
+        edit_response = client.put(f'/api/game/{physical_game_id}/details',
+            json={
+                'name': 'Super Mario 64 Updated',
+                'console': 'Nintendo 64 Console'
+            }
+        )
+        
+        assert edit_response.status_code == 200
+        edit_data = json.loads(edit_response.data)
+        assert 'message' in edit_data
+        assert edit_data['name'] == 'Super Mario 64 Updated'
+        assert edit_data['console'] == 'Nintendo 64 Console'
+    
+    def test_edit_details_missing_name(self, client):
+        """Test edit details without required name"""
+        # Add a game to collection first
+        add_response = client.post('/api/collection/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/zelda-ocarina-of-time',
+                'condition': 'CIB',
+                'purchase_price': 49.99
+            }
+        )
+        game_data = json.loads(add_response.data)
+        physical_game_id = game_data['game']['id']
+        
+        # Try to edit without name
+        edit_response = client.put(f'/api/game/{physical_game_id}/details',
+            json={
+                'console': 'Nintendo 64'
+                # Missing name
+            }
+        )
+        
+        assert edit_response.status_code == 400
+        error_data = json.loads(edit_response.data)
+        assert 'error' in error_data
+    
+    def test_edit_details_missing_console(self, client):
+        """Test edit details without required console"""
+        # Add a game to collection first
+        add_response = client.post('/api/collection/add',
+            json={
+                'url': 'https://www.pricecharting.com/game/nintendo-64/mario-kart-64',
+                'condition': 'CIB',
+                'purchase_price': 34.99
+            }
+        )
+        game_data = json.loads(add_response.data)
+        physical_game_id = game_data['game']['id']
+        
+        # Try to edit without console
+        edit_response = client.put(f'/api/game/{physical_game_id}/details',
+            json={
+                'name': 'Mario Kart 64 Updated'
+                # Missing console
+            }
+        )
+        
+        assert edit_response.status_code == 400
+        error_data = json.loads(edit_response.data)
+        assert 'error' in error_data
+    
+    def test_edit_details_nonexistent_game(self, client):
+        """Test edit details for non-existent game"""
+        edit_response = client.put('/api/game/99999/details',
+            json={
+                'name': 'Nonexistent Game',
+                'console': 'Nonexistent Console'
+            }
+        )
+        
+        assert edit_response.status_code == 404
+        error_data = json.loads(edit_response.data)
+        assert 'error' in error_data
+
+
 class TestConcurrentOperations:
     """Test suite for concurrent optimistic operations"""
     

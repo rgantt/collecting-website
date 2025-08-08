@@ -2551,10 +2551,10 @@
             bootstrapModal.show();
         }
         
-        // Handle edit details form submission
+        // Handle edit details form submission with optimistic updates
         document.getElementById('submitEditDetailsBtn').addEventListener('click', async () => {
             const modal = document.getElementById('editDetailsModal');
-            const gameId = modal.dataset.gameId;
+            const gameId = parseInt(modal.dataset.gameId);
             const newName = document.getElementById('editGameName').value.trim();
             const newConsole = document.getElementById('editGameConsole').value.trim();
             
@@ -2584,70 +2584,18 @@
             submitBtn.textContent = 'Updating...';
             
             try {
-                const response = await fetch(`/api/game/${gameId}/details`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        name: newName,
-                        console: newConsole
-                    })
-                });
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to update game details');
-                }
-                
-                const result = await response.json();
-                console.log('Game details updated:', result);
+                // Use optimistic update function
+                await window.editGameDetailsOptimistic(gameId, newName, newConsole);
                 
                 // Show success message
                 successDiv.textContent = 'Game details updated successfully!';
                 successDiv.classList.remove('d-none');
                 submitBtn.textContent = 'Updated!';
                 
-                // Update the display on the page
-                const nameDisplay = document.querySelector(`[data-game-id="${gameId}"] .full-name`);
-                const consoleDisplay = document.getElementById(`console-display-${gameId}`);
-                
-                if (nameDisplay) {
-                    nameDisplay.textContent = newName;
-                }
-                if (consoleDisplay) {
-                    consoleDisplay.textContent = newConsole;
-                }
-                
-                // Update the button's data attributes for future edits
-                const editBtn = document.querySelector(`[data-game-id="${gameId}"].edit-details-btn`);
-                if (editBtn) {
-                    editBtn.dataset.gameName = newName;
-                    editBtn.dataset.gameConsole = newConsole;
-                }
-                
-                // Also update the table row
-                const tableRow = document.querySelector(`tr.game-row[data-game-id="${gameId}"]`);
-                if (tableRow) {
-                    const nameCell = tableRow.querySelector('.name-col');
-                    const consoleCell = tableRow.querySelector('.console-col');
-                    if (nameCell) {
-                        nameCell.textContent = newName;
-                        nameCell.title = newName;
-                    }
-                    if (consoleCell) {
-                        consoleCell.textContent = newConsole;
-                        consoleCell.title = newConsole;
-                    }
-                }
-                
                 // Close modal after delay
                 setTimeout(() => {
                     const bootstrapModal = bootstrap.Modal.getInstance(modal);
                     bootstrapModal.hide();
-                    
-                    // Refresh the games list to ensure consistency
-                    loadAllGames();
                 }, 1500);
                 
             } catch (error) {
