@@ -846,6 +846,194 @@
                 window.gameStateManager.removeGame(520);
                 restoreFetch();
             });
+
+            // Phase 3: Selective Refresh Tests
+            await testRunner.runTest('Selective Refresh: refreshGame() succeeds', async () => {
+                // Add a game to state
+                const originalGame = { 
+                    id: 600, 
+                    name: 'Original Name', 
+                    console: 'Original Console',
+                    is_wanted: false,
+                    purchase_price: 29.99
+                };
+                window.gameStateManager.addGame(originalGame);
+                
+                // Mock the single game API endpoint
+                mockFetch({
+                    'GET /api/game/600': {
+                        ok: true,
+                        data: { 
+                            game: {
+                                id: 600,
+                                name: 'Updated Name',
+                                console: 'Updated Console', 
+                                is_wanted: false,
+                                purchase_price: 39.99,
+                                current_price: 45.99
+                            }
+                        }
+                    }
+                });
+
+                const result = await window.refreshGame(600);
+                
+                // Check that game was updated in state
+                const updatedGame = window.gameStateManager.getGame(600);
+                assertNotNull(updatedGame, 'Game should still be in state manager');
+                assertEqual(updatedGame.name, 'Updated Name');
+                assertEqual(updatedGame.console, 'Updated Console');
+                assertEqual(updatedGame.purchase_price, 39.99);
+                assertEqual(updatedGame.current_price, 45.99);
+                
+                // Cleanup
+                window.gameStateManager.removeGame(600);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Selective Refresh: handles 404 (deleted game)', async () => {
+                // Add a game to state
+                const originalGame = { id: 610, name: 'To Be Deleted', console: 'N64' };
+                window.gameStateManager.addGame(originalGame);
+                
+                // Mock 404 response (game was deleted)
+                mockFetch({
+                    'GET /api/game/610': {
+                        ok: false,
+                        status: 404,
+                        data: { error: 'Game not found' }
+                    }
+                });
+
+                const result = await window.refreshGame(610);
+                
+                // Check that game was removed from state
+                const deletedGame = window.gameStateManager.getGame(610);
+                assert(deletedGame === null, 'Deleted game should be removed from state');
+                assert(result === null, 'Function should return null for deleted games');
+                
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Selective Refresh: no changes detected', async () => {
+                // Add a game to state
+                const gameData = { 
+                    id: 620, 
+                    name: 'Unchanged Game', 
+                    console: 'N64',
+                    is_wanted: false,
+                    purchase_price: 24.99
+                };
+                window.gameStateManager.addGame(gameData);
+                
+                // Mock API returning exactly same data
+                mockFetch({
+                    'GET /api/game/620': {
+                        ok: true,
+                        data: { game: gameData }
+                    }
+                });
+
+                const result = await window.refreshGame(620);
+                
+                // Should return current data unchanged
+                assertNotNull(result, 'Should return game data');
+                assertEqual(result.name, 'Unchanged Game');
+                assertEqual(result.purchase_price, 24.99);
+                
+                // State should remain the same
+                const unchangedGame = window.gameStateManager.getGame(620);
+                assertEqual(unchangedGame.name, 'Unchanged Game');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(620);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Selective Refresh: differential DOM update', async () => {
+                // Add a game to state
+                const originalGame = { 
+                    id: 630, 
+                    name: 'DOM Test Game', 
+                    console: 'GameCube',
+                    condition: 'complete'
+                };
+                window.gameStateManager.addGame(originalGame);
+                
+                // Create mock DOM elements
+                const tableRow = document.createElement('tr');
+                tableRow.className = 'game-row';
+                tableRow.dataset.gameId = '630';
+                
+                const nameCell = document.createElement('td');
+                nameCell.className = 'name-col';
+                nameCell.textContent = 'DOM Test Game';
+                nameCell.title = 'DOM Test Game';
+                
+                const consoleCell = document.createElement('td');
+                consoleCell.className = 'console-col';
+                consoleCell.textContent = 'GameCube';
+                consoleCell.title = 'GameCube';
+                
+                tableRow.appendChild(nameCell);
+                tableRow.appendChild(consoleCell);
+                document.body.appendChild(tableRow);
+                
+                // Mock API returning updated data (only name changed)
+                mockFetch({
+                    'GET /api/game/630': {
+                        ok: true,
+                        data: { 
+                            game: {
+                                id: 630,
+                                name: 'Updated DOM Game', // Changed
+                                console: 'GameCube', // Unchanged
+                                condition: 'complete'
+                            }
+                        }
+                    }
+                });
+
+                await window.refreshGame(630);
+                
+                // Check that only changed elements were updated
+                assertEqual(nameCell.textContent, 'Updated DOM Game');
+                assertEqual(nameCell.title, 'Updated DOM Game');
+                assertEqual(consoleCell.textContent, 'GameCube'); // Should remain unchanged
+                
+                // Cleanup
+                document.body.removeChild(tableRow);
+                window.gameStateManager.removeGame(630);
+                restoreFetch();
+            });
+
+            await testRunner.runTest('Selective Refresh: network error handling', async () => {
+                // Add a game to state
+                const originalGame = { id: 640, name: 'Network Test', console: 'PS2' };
+                window.gameStateManager.addGame(originalGame);
+                
+                // Mock network error
+                mockFetch({
+                    'GET /api/game/640': {
+                        ok: false,
+                        status: 500,
+                        data: { error: 'Internal server error' }
+                    }
+                });
+
+                const result = await window.refreshGame(640);
+                
+                // Should return null on error but leave state unchanged
+                assert(result === null, 'Should return null on error');
+                
+                const unchangedGame = window.gameStateManager.getGame(640);
+                assertNotNull(unchangedGame, 'Original game should remain in state');
+                assertEqual(unchangedGame.name, 'Network Test');
+                
+                // Cleanup
+                window.gameStateManager.removeGame(640);
+                restoreFetch();
+            });
         }
 
         // Run all tests

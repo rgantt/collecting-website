@@ -1086,6 +1086,13 @@
                             'Game marked as lent out successfully!'
                         );
                         
+                        // Phase 3: Background refresh to ensure data accuracy
+                        setTimeout(() => {
+                            window.refreshGame(gameId).catch(err => 
+                                console.log('Background refresh failed (non-critical):', err)
+                            );
+                        }, 1000);
+                        
                         // Close modal if open
                         const modal = document.getElementById('markLentModal');
                         if (modal) {
@@ -1229,6 +1236,13 @@
                         window.errorHandler.showSuccess(
                             'Game marked as returned successfully!'
                         );
+                        
+                        // Phase 3: Background refresh to ensure data accuracy
+                        setTimeout(() => {
+                            window.refreshGame(gameId).catch(err => 
+                                console.log('Background refresh failed (non-critical):', err)
+                            );
+                        }, 1000);
                         
                         // Close modal if open
                         const modal = document.getElementById('unmarkLentModal');
@@ -1410,6 +1424,13 @@
                     onSuccess: (result) => {
                         console.log('✅ Edit details completed successfully:', result);
                         window.errorHandler.showSuccess('Game details updated successfully!');
+                        
+                        // Phase 3: Background refresh to ensure data accuracy
+                        setTimeout(() => {
+                            window.refreshGame(gameId).catch(err => 
+                                console.log('Background refresh failed (non-critical):', err)
+                            );
+                        }, 1000); // 1 second delay to let server process complete
                     },
                     onError: (error) => {
                         console.error('❌ Edit details failed:', error);
@@ -1427,6 +1448,238 @@
             throw error;
         }
     };
+
+    // Selective game data refresh function (Phase 3)
+    window.refreshGame = async function(gameId) {
+        console.log('🔄 Starting selective refresh for game:', gameId);
+        
+        try {
+            // Fetch fresh game data from server
+            const response = await fetch(`/api/game/${gameId}`);
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    console.log('⚠️ Game not found during refresh, may have been deleted:', gameId);
+                    // Handle deleted game - remove from client state
+                    handleDeletedGameRefresh(gameId);
+                    return null;
+                }
+                throw new Error(`Failed to refresh game data: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            const freshGameData = result.game;
+            
+            console.log('📥 Received fresh game data:', freshGameData);
+            
+            // Get current client state
+            const currentGameData = window.gameStateManager.getGame(gameId);
+            
+            if (!currentGameData) {
+                console.log('⚠️ Game not in client state, adding:', gameId);
+                // Game exists on server but not in client state - add it
+                window.gameStateManager.addGame(freshGameData);
+                // For now, just trigger a page refresh when games are added
+                // In a future version we could implement dynamic game row creation
+                console.log('ℹ️ New game detected, refresh recommended');
+                return freshGameData;
+            }
+            
+            // Perform differential update - only change what's different
+            const changes = detectGameDataChanges(currentGameData, freshGameData);
+            
+            if (Object.keys(changes).length === 0) {
+                console.log('✅ No changes detected for game:', gameId);
+                return currentGameData;
+            }
+            
+            console.log('🔄 Applying differential update with changes:', changes);
+            
+            // Update client state
+            window.gameStateManager.updateGame(freshGameData);
+            
+            // Apply differential DOM updates
+            applyGameDataChanges(gameId, changes, freshGameData);
+            
+            // Update allGames array if it exists
+            if (window.allGames) {
+                const index = window.allGames.findIndex(g => g.id == gameId);
+                if (index !== -1) {
+                    window.allGames[index] = freshGameData;
+                } else {
+                    window.allGames.unshift(freshGameData);
+                }
+            }
+            
+            console.log('✅ Successfully refreshed game:', gameId);
+            return freshGameData;
+            
+        } catch (error) {
+            console.error('❌ Error refreshing game data:', error);
+            // Don't show error to user for background refresh failures
+            // Just log and continue - optimistic state remains unchanged
+            return null;
+        }
+    };
+    
+    // Helper function to detect changes between current and fresh game data
+    function detectGameDataChanges(current, fresh) {
+        const changes = {};
+        
+        // Fields to check for changes
+        const fieldsToCheck = [
+            'name', 'console', 'condition', 'purchase_price', 'current_price',
+            'is_wanted', 'is_lent', 'is_for_sale', 'lent_date', 'lent_to', 
+            'asking_price', 'sale_notes', 'source_name'
+        ];
+        
+        for (const field of fieldsToCheck) {
+            if (current[field] !== fresh[field]) {
+                changes[field] = {
+                    from: current[field],
+                    to: fresh[field]
+                };
+            }
+        }
+        
+        return changes;
+    }
+    
+    // Helper function to apply differential changes to DOM
+    function applyGameDataChanges(gameId, changes, freshData) {
+        console.log('🎯 Applying DOM changes for game:', gameId, changes);
+        
+        // Update table row if it exists
+        const tableRow = document.querySelector(`tr.game-row[data-game-id="${gameId}"]`);
+        if (tableRow) {
+            // Update name
+            if (changes.name) {
+                const nameCell = tableRow.querySelector('.name-col');
+                if (nameCell) {
+                    nameCell.textContent = freshData.name;
+                    nameCell.title = freshData.name;
+                }
+            }
+            
+            // Update console
+            if (changes.console) {
+                const consoleCell = tableRow.querySelector('.console-col');
+                if (consoleCell) {
+                    consoleCell.textContent = freshData.console;
+                    consoleCell.title = freshData.console;
+                }
+            }
+            
+            // Update condition
+            if (changes.condition) {
+                const conditionCell = tableRow.querySelector('.condition-col');
+                if (conditionCell) {
+                    conditionCell.textContent = freshData.condition;
+                }
+            }
+            
+            // Update prices
+            if (changes.purchase_price || changes.current_price) {
+                // Re-render price columns if they exist
+                const priceCell = tableRow.querySelector('.price-col');
+                if (priceCell && freshData.purchase_price) {
+                    priceCell.textContent = `$${freshData.purchase_price}`;
+                }
+                
+                const currentPriceCell = tableRow.querySelector('.current-price-col');
+                if (currentPriceCell && freshData.current_price) {
+                    currentPriceCell.textContent = `$${freshData.current_price}`;
+                }
+            }
+        }
+        
+        // Update expanded details view if open
+        const gameDetails = document.querySelector(`div.game-details[data-game-id="${gameId}"]`);
+        if (gameDetails && gameDetails.style.display !== 'none') {
+            
+            // Update name in details
+            if (changes.name) {
+                const nameDisplay = gameDetails.querySelector('.full-name');
+                if (nameDisplay) {
+                    nameDisplay.textContent = freshData.name;
+                }
+            }
+            
+            // Update console in details
+            if (changes.console) {
+                const consoleDisplay = document.getElementById(`console-display-${gameId}`);
+                if (consoleDisplay) {
+                    consoleDisplay.textContent = freshData.console;
+                }
+            }
+            
+            // Update status badges and action buttons
+            if (changes.is_lent || changes.is_for_sale) {
+                updateGameStatusDisplay(gameId, freshData);
+            }
+        }
+        
+        // Update edit button data attributes
+        const editBtn = document.querySelector(`[data-game-id="${gameId}"].edit-details-btn`);
+        if (editBtn) {
+            if (changes.name) editBtn.dataset.gameName = freshData.name;
+            if (changes.console) editBtn.dataset.gameConsole = freshData.console;
+        }
+    }
+    
+    // Helper function to handle deleted games during refresh
+    function handleDeletedGameRefresh(gameId) {
+        console.log('🗑️ Handling deleted game during refresh:', gameId);
+        
+        // Remove from client state
+        window.gameStateManager.removeGame(gameId);
+        
+        // Remove from DOM
+        const tableRow = document.querySelector(`tr.game-row[data-game-id="${gameId}"]`);
+        if (tableRow) {
+            tableRow.remove();
+        }
+        
+        // Remove from allGames array if it exists
+        if (window.allGames) {
+            const index = window.allGames.findIndex(g => g.id == gameId);
+            if (index !== -1) {
+                window.allGames.splice(index, 1);
+            }
+        }
+        
+        // Close any open details for this game
+        const gameDetails = document.querySelector(`div.game-details[data-game-id="${gameId}"]`);
+        if (gameDetails) {
+            gameDetails.style.display = 'none';
+        }
+        
+        // Update result count
+        updateResultCount(-1);
+    }
+    
+    // Helper function to update game status display (badges, buttons)
+    function updateGameStatusDisplay(gameId, gameData) {
+        // This would update status badges, action buttons based on fresh data
+        // Implementation depends on existing UI structure
+        console.log('🎨 Updating status display for game:', gameId, gameData);
+        
+        // Find actions section and update buttons based on fresh status
+        const gameCard = document.querySelector(`[data-game-id="${gameId}"]`);
+        if (!gameCard) return;
+        
+        // Update status indicators
+        const statusElements = gameCard.querySelectorAll('.status-badge');
+        statusElements.forEach(el => el.remove()); // Remove existing badges
+        
+        // Add fresh status badges based on gameData
+        if (gameData.is_lent) {
+            // Add "Lent Out" badge
+        }
+        if (gameData.is_for_sale) {
+            // Add "For Sale" badge  
+        }
+    }
 
     // Export functions for use in other scripts
     window.createGameRow = createGameRow;
