@@ -860,6 +860,7 @@
     <script src="{{ url_for('static', filename='js/state-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/optimistic-updater.js') }}"></script>
     <script src="{{ url_for('static', filename='js/error-handler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1834,54 +1835,36 @@
                     if (!isWishlist) {
                         requestData.purchase_date = document.getElementById('purchaseDate').value;
                         requestData.purchase_source = document.getElementById('purchaseSource').value || null;
-                        requestData.purchase_price = document.getElementById('purchasePrice').value;
+                        requestData.purchase_price = parseFloat(document.getElementById('purchasePrice').value);
                     }
                     
-                    // Make API request to the appropriate endpoint
-                    const endpoint = isWishlist ? '/api/wishlist/add' : '/api/collection/add';
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestData)
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (!response.ok) {
-                        throw new Error(data.error || `Failed to add game ${isWishlist ? 'to wishlist' : 'to collection'}`);
+                    // Use optimistic update functions
+                    let result;
+                    if (isWishlist) {
+                        result = await window.addToWishlistOptimistic(requestData);
+                    } else {
+                        result = await window.addToCollectionOptimistic(requestData);
                     }
                     
-                    console.log(`Successfully added game ${isWishlist ? 'to wishlist' : 'to collection'}:`, data);
+                    // Reset form after successful addition
+                    // Clear the form for next entry but keep modal open
+                    urlInput.value = '';
+                    conditionSelect.value = 'CIB';
                     
-                    // Show success message
-                    const successMessage = isWishlist 
-                        ? `Added ${data.game.name} (${data.game.console}) to your wishlist!`
-                        : `Added ${data.game.name} (${data.game.console}) to your collection!`;
-                    showSuccess(successMessage);
+                    // Clear purchase fields if in purchased mode
+                    if (!isWishlist) {
+                        document.getElementById('purchaseDate').value = new Date().toISOString().split('T')[0];
+                        document.getElementById('purchaseSource').value = '';
+                        document.getElementById('purchasePrice').value = '';
+                    }
                     
-                    // Reset form after showing success message
+                    // Keep success message visible for a bit longer, then hide
                     setTimeout(() => {
-                        // Clear the form for next entry but keep modal open
-                        urlInput.value = '';
-                        conditionSelect.value = 'CIB';
-                        
-                        // Clear purchase fields if in purchased mode
-                        if (!isWishlist) {
-                            document.getElementById('purchaseDate').value = new Date().toISOString().split('T')[0];
-                            document.getElementById('purchaseSource').value = '';
-                            document.getElementById('purchasePrice').value = '';
-                        }
-                        
-                        // Reload games in background to show new item
-                        loadAllGames();
-                        
-                        // Keep success message visible for a bit longer, then hide
-                        setTimeout(() => {
+                        const successDiv = document.getElementById('wishlistSuccessMessage');
+                        if (successDiv) {
                             successDiv.classList.add('d-none');
-                        }, 2000);
-                    }, 1000);
+                        }
+                    }, 3000);
                     
                 } catch (error) {
                     console.error(`Error adding game ${isWishlist ? 'to wishlist' : 'to collection'}:`, error);
