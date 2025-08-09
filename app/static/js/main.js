@@ -7,10 +7,13 @@
     'use strict';
     
     // Ensure required dependencies are available
-    if (!window.gameStateManager || !window.errorHandler) {
-        console.error('Required dependencies not loaded. Please ensure state-manager.js and error-handler.js are loaded first.');
-        return;
+    if (!window.gameStateManager) {
+        console.error('GameStateManager not loaded. Please ensure state-manager.js is loaded first.');
     }
+    if (!window.errorHandler) {
+        console.error('ErrorHandler not loaded. Please ensure error-handler.js is loaded first.');
+    }
+    // Continue even if dependencies are missing to allow function definitions
 
     /**
      * Create a game card HTML element
@@ -1409,7 +1412,7 @@
                 button.classList.remove('btn-loading');
                 button.disabled = false;
             }
-        }
+        },
         
         /**
          * Trigger success micro-animation on element

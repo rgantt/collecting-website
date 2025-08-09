@@ -2,17 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: August 2025  
-**Current Version**: API-First Migration Complete - Cleanup Complete ✅
+**Last Updated**: January 2025  
+**Current Version**: API-First System - Production Ready ✅  
+**Default Dev Port**: 8082
 
 ## Common Development Commands
 
 ### Running the Application
 ```bash
-# Development server
+# Development server (preferred) - runs on port 8082 by default
 python3 wsgi.py
-# or
-python3 application.py
+
+# Override port with environment variable
+FLASK_RUN_PORT=8081 python3 wsgi.py
 
 # Production server with Gunicorn
 gunicorn --workers 4 --bind 0.0.0.0:8080 wsgi:app
@@ -26,6 +28,21 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+### Testing Commands
+```bash
+# Run all backend tests with coverage
+python run_tests.py
+
+# Run specific test file
+python3 -m pytest tests/test_optimistic_ui.py -v
+
+# Run single test
+python3 -m pytest tests/test_optimistic_ui.py::TestAddGameOptimistic::test_add_to_wishlist_success -v
+
+# Generate coverage report
+python3 -m pytest tests/ --cov=app --cov-report=html
 ```
 
 ### Database Operations
@@ -44,9 +61,6 @@ sudo ./deploy-local-simple.sh
 
 # GitHub Actions deployment
 ./deploy-github-actions.sh
-
-# Debug mode
-./debug-app.sh
 ```
 
 ## Architecture Overview
@@ -65,22 +79,26 @@ This is a Flask-based web application for managing video game collections with t
    - `pricecharting_service.py`: Integrates with PriceCharting.com API for price data
    - `price_retrieval.py`: Handles price updates and history tracking
 
-3. **Database**
-   - SQLite database (`games.db`) with tables for:
-     - `purchased_games`: Collection items
-     - `wishlist`: Wishlist items
-     - `price_history`: Historical price tracking
+3. **Database Architecture**
+   - SQLite database (`games.db`) with normalized schema:
+     - `physical_games`: Core game entities (name, console)
+     - `purchased_games`: Collection items linked to physical_games
+     - `wanted_games`: Wishlist items linked to physical_games  
+     - `pricecharting_games`: Price tracking cache
+     - `physical_games_pricecharting_games`: Junction table linking games to price data
+     - `lent_games`: Tracking games lent out
      - `games_for_sale`: Items marked for sale
-   - No ORM - uses direct SQLite connections with context managers
+   - **No ORM**: Direct SQLite queries with context managers for automatic cleanup
+   - **Configurable database path**: Tests use temporary databases, production uses `games.db`
 
-4. **Frontend Architecture** (✅ **API-First System - Migration Complete**)
-   - Server-side rendering with Jinja2 templates with progressive enhancement
-   - **API-First System**: Server confirmation before UI updates (no optimistic updates)
+4. **Frontend Architecture** (✅ **API-First System**)
+   - Server-side rendering with Jinja2 templates + progressive enhancement
+   - **API-First Pattern**: Server confirmation before UI updates (eliminates hanging modals)
      - `static/js/state-manager.js`: Client-side game state management
-     - `static/js/error-handler.js`: Centralized error handling and toast notifications
+     - `static/js/error-handler.js`: Centralized error handling with toast notifications  
      - `static/js/main.js`: All API-first operation implementations
-   - **Zero page refreshes** for all major operations (add, edit, remove, purchase, lent status)
-   - **Immediate UI feedback** after server response (eliminates hanging modals)
+   - **Zero page refreshes** for all operations (add, edit, remove, purchase, lent status)
+   - **Immediate UI feedback** after successful server responses
    - Service worker for offline support
 
 5. **API Design**
@@ -108,10 +126,12 @@ This is a Flask-based web application for managing video game collections with t
 
 ### Database Schema Key Relationships
 
-- `purchased_games` and `wishlist` share similar structure with game metadata
-- `price_history` tracks price changes over time for both collections
-- Conditions: "new", "loose", "complete", "box_only", "manual_only"
-- Sorting supports multiple fields: name, console, acquisition_date, price, etc.
+- **Core Entity**: `physical_games` is the central table (name, console)
+- **Relationships**: All other tables link to `physical_games` via foreign keys
+- **Junction Pattern**: `physical_games_pricecharting_games` links games to price data
+- **Legacy Support**: `wishlist` table exists alongside `wanted_games` for backward compatibility
+- **Conditions**: "new", "loose", "complete", "box_only", "manual_only"
+- **Sorting**: Supports multiple fields: name, console, acquisition_date, price, etc.
 
 ### Error Handling Patterns
 
@@ -129,13 +149,15 @@ This is a Flask-based web application for managing video game collections with t
 
 ### API-First System Details
 
-**Key Operations with API-First Pattern**:
+**Key JavaScript Operations** (all use API-first pattern):
 1. **Add Games**: `addToWishlistOptimistic()`, `addToCollectionOptimistic()`
 2. **Remove Games**: `removeFromWishlistOptimistic()`, `removeFromCollectionOptimistic()`
 3. **Purchase Conversion**: `purchaseWishlistGameOptimistic()`
 4. **Lent Status**: `markGameAsLentOptimistic()`, `unmarkGameAsLentOptimistic()`
 5. **Edit Details**: `editGameDetailsOptimistic()`
 6. **Sale Status**: Functions don't exist in current codebase
+
+Note: Function names contain "Optimistic" for historical reasons, but they now implement API-first pattern.
 
 **API-First Pattern** (eliminates hanging modals and data inconsistency):
 ```javascript
@@ -161,88 +183,130 @@ closeModal();
 
 ### Testing Strategy
 
-**Backend Tests** (Location: `tests/test_optimistic_ui.py`):
-- Framework: pytest with coverage reporting and Flask test client
-- Test categories: 
-  - API endpoints (add, edit, remove, purchase, lent status)
+**Backend Tests**:
+- **Framework**: pytest with Flask test client and coverage reporting
+- **Schema Management**: Tests use `test_schema.sql` (extracted from production database) for consistency
+- **Database Isolation**: Each test uses temporary database with production schema
+- **Test Categories**: 
+  - API endpoints (add, edit, remove, purchase, lent status operations)
   - Error handling and validation
-  - Rollback scenarios and concurrent operations
-- Run with: `python run_tests.py` (requires virtual environment activation)
-- Current coverage: 50%+ with focus on critical paths
-- **22 test cases** covering all optimistic operations
+  - Concurrent operations and race conditions
+- **Coverage**: 32 test cases with 54% code coverage focusing on critical API paths
+- **Run Command**: `python run_tests.py` (backend tests only, requires virtual environment)
 
-**Frontend Tests** (Location: `tests/test_optimistic_ui.html`):
-- Framework: Custom test runner with mock fetch capabilities
-- Test categories:
-  - State management unit tests (GameStateManager, OptimisticUpdater)  
-  - Optimistic update integration tests with mocked APIs
-  - UI manipulation verification
-  - Rollback scenario testing
-- Run by: Opening HTML file in browser and clicking "Run All Tests"
-- **25+ test cases** with success/failure scenarios for all operations
+**Key Testing Pattern**:
+```python
+@pytest.fixture
+def app():
+    """Create isolated test environment"""
+    db_fd, db_path = tempfile.mkstemp(suffix='.db')
+    app = create_app()
+    app.config['TESTING'] = True
+    app.config['DATABASE_PATH'] = db_path  # Override for tests
+    
+    # Load production schema from SQL file
+    with app.app_context():
+        init_test_db()  # Executes test_schema.sql
+    
+    yield app
+    # Cleanup temporary database
+```
 
-**Integration Testing**:
-- Tests cover complete optimistic update flow: UI → State → API → Database
-- Rollback scenarios verify proper error handling and state restoration
-- Concurrent operation tests ensure race condition handling
-- DOM manipulation verification ensures UI consistency
+**Test Database Architecture**:
+- **Single Source of Truth**: `test_schema.sql` contains exact production schema
+- **No Schema Drift**: Tests automatically use current production database structure
+- **Temporary Isolation**: Each test gets clean database, no interference between tests
+- **Configurable Paths**: App supports different database paths via `DATABASE_PATH` config
 
-**✅ Task 5.1: Comprehensive Optimistic Update Testing - COMPLETED**:
-- **Test File**: `tests/test_optimistic_updates_comprehensive.html`
-- **Coverage**: 20+ comprehensive test scenarios with mock server infrastructure
-- **Status**: ✅ **PRODUCTION READY** - All critical scenarios validated
-- **Features**: Configurable success rates, network delays, timeout simulation
-- **Test Categories**:
-  - Successful operations (4 tests)
-  - Failure rollback scenarios (3 tests) 
-  - Rapid successive operations (2 tests)
-  - Network timeout scenarios (1 test)
-  - Batch operation failures (2 tests)
-  - Loading state integration (8+ tests)
-- **Result**: Optimistic UI system (Phases 1-4) validated for production use
+**Frontend Testing**:
+- Currently no automated frontend tests (HTML-based tests were removed)
+- Future consideration: Implement automated UI testing with tools like Playwright or Cypress
+- Manual testing: Use browser developer tools to verify API-first operations
 
-**✅ Task 6.1: Remove Legacy Full Page Refreshes - COMPLETED**:
-- **Status**: ✅ **ZERO PAGE REFRESHES ACHIEVED** - Core optimistic UI objective complete
-- **Test File**: `tests/test_no_page_refreshes.html` - Page refresh detection and validation
-- **Key Achievement**: Eliminated all `location.reload()` calls and page refresh triggers
-- **Validation**: Navigation Timing API confirms no page reloads during operations
-- **Impact**: All user operations provide immediate feedback without browser refreshes
+## Key Implementation Details
 
-**Current Implementation Status**:
-- ✅ **API-First Migration**: Complete (8/8 major functions converted)
-- ✅ **Zero Page Refreshes**: All operations work without browser refreshes
-- ✅ **Modal Fixes**: Eliminated hanging "Loading..." modal issues
-- ✅ **Data Consistency**: Server confirmation before UI updates
-- ✅ **Code Cleanup**: Complete (all optimistic UI remnants removed)
+**Database Configuration Architecture**:
+- `config.py`: Defines `DATABASE_PATH` setting with environment variable support
+- `app/routes.py`: Uses `get_db_path()` function to retrieve configurable database path
+- **Production**: Uses `games.db` in application root directory
+- **Tests**: Override with temporary database paths for isolation
+- **CI/CD**: Works without requiring actual `games.db` file (uses schema SQL)
 
-**Production Ready Features**:
-- Zero page refreshes for all major operations
-- Reliable modal behavior (no hanging "Loading..." states)
-- Server-first data consistency (eliminates stale data issues)
-- Toast notification system for user feedback
-- Proper error handling with user-friendly messages
-- Immediate UI updates after server confirmation
-- Clean, maintainable codebase (post-cleanup)
+**Critical Database Pattern**:
+```python
+# In app/routes.py
+def get_db_path():
+    """Get database path from app config or fallback to default"""
+    if current_app:
+        return current_app.config.get('DATABASE_PATH', 
+                                     Path(__file__).parent.parent / "games.db")
+    return Path(__file__).parent.parent / "games.db"
 
-**Recent Major Changes (August 2025)**:
-- ✅ **Migration from Optimistic UI to API-First**: Resolved hanging modal issues
-- ✅ **Eliminated complex rollback system**: Simplified error handling  
-- ✅ **Fixed lent status icon updates**: Status icons now update immediately
-- ✅ **Improved reliability**: All operations wait for server confirmation
-- ✅ **Complete Cleanup**: Removed all optimistic UI remnants and debug code
+@contextmanager
+def get_db():
+    conn = sqlite3.connect(get_db_path())  # Uses configurable path
+    try:
+        yield conn
+    finally:
+        conn.close()
+```
 
-**Cleanup Completed** (see CLEANUP_PLAN.md for details):
-- ✅ Removed: `static/js/optimistic-updater.js` (entire file)
-- ✅ Simplified: LoadingStateManager to basic indicators only
-- ✅ Removed: Background refresh system and batch queues  
-- ✅ Cleaned: Phase-related comments and diagnostic popups
-- ✅ Removed: All DEBUG console.log statements
+**API-First Operation Pattern**:
+All game operations follow this reliable pattern:
+```javascript
+// 1. Make API call first (no optimistic updates)
+const response = await fetch('/api/endpoint', { method: 'POST', ... });
+const data = await response.json();
 
-**Next Steps**:
-- **Testing Updates**: Update test suites to reflect API-first approach
-- **Documentation**: Update any remaining optimistic UI references
+if (!response.ok) {
+    throw new Error(data.error || 'Operation failed');
+}
+
+// 2. Update UI only after server success
+updateDOM(data);
+updateStateManager(data);
+showSuccessMessage();
+closeModal();  // Prevents hanging modals
+```
+
+**Current Production Status**:
+- ✅ **Reliable Operations**: No hanging modals, no data inconsistency
+- ✅ **Zero Page Refreshes**: All operations work without browser refreshes  
+- ✅ **Clean Codebase**: Optimistic UI complexity removed
+- ✅ **Robust Testing**: 32 automated tests with production schema consistency
+- ✅ **CI/CD Ready**: Tests pass in GitHub Actions without requiring database files
 
 **CI/CD Integration**:
 - GitHub Actions runs backend tests before deployment
 - Tests must pass before merging changes  
 - Coverage reports generated automatically with htmlcov output
+
+## Important Files and Locations
+
+**Core Application**:
+- `wsgi.py` - WSGI entry point, preferred for development server
+- `app/routes.py` - Main Flask routes and API endpoints (500+ lines)
+- `app/routes.py:get_db_path()` - Critical function for database path resolution
+- `config.py` - Application configuration including DATABASE_PATH
+
+**Database**:
+- `games.db` - Production database (not in version control, auto-downloaded from S3)
+- `test_schema.sql` - Production schema export for tests (single source of truth)
+- Service layer: `*_service.py` files handle business logic
+
+**Frontend**:
+- `app/templates/index.html` - Main UI template
+- `app/static/js/main.js` - All API-first operations (8 major functions)
+- `app/static/js/state-manager.js` - Client-side state management
+- `app/static/js/error-handler.js` - Toast notifications and error handling
+
+**Testing**:
+- `run_tests.py` - Main test runner script (backend tests only)
+- `tests/test_*.py` - Backend tests (32 test cases, 54% coverage)
+- `test_schema.sql` - Production database schema for test isolation
+
+**Development Workflow**:
+1. Activate virtual environment: `source venv/bin/activate`
+2. Run tests: `python run_tests.py`
+3. Start development server: `python3 wsgi.py` (port 8082)
+4. Access application: http://localhost:8082

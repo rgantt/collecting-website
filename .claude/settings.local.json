@@ -18,7 +18,10 @@
       "Bash(lsof:*)",
       "Bash(python:*)",
       "Bash(rm:*)",
-      "Bash(gh run view:*)"
+      "Bash(gh run view:*)",
+      "Bash(find:*)",
+      "Bash(node:*)",
+      "Bash(echo:*)"
     ],
     "deny": []
   }
