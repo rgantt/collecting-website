@@ -1347,7 +1347,7 @@
             }
             
             // Format value change percentage
-            function formatValueChange(current, purchase) {
+            window.formatValueChange = function(current, purchase) {
                 if (!current || !purchase) return '-';
                 
                 const change = (current - purchase) / purchase * 100;
@@ -1468,7 +1468,7 @@
                 
                 // Render table rows with details rows
                 tbody.innerHTML = pageGames.map(game => {
-                    const valueChange = !game.is_wanted ? formatValueChange(game.current_price, game.purchase_price) : '-';
+                    const valueChange = !game.is_wanted ? window.formatValueChange(game.current_price, game.purchase_price) : '-';
                     let statusIcon, status;
                     if (game.is_wanted) {
                         statusIcon = '🔖';
@@ -2497,7 +2497,7 @@
                             if (tableRow) {
                                 // Update current price cell
                                 const priceCell = tableRow.querySelector('.price-cell');
-                                if (priceCell && updatedGame.current_price !== undefined) {
+                                if (priceCell) {
                                     const formattedPrice = formatCurrency(updatedGame.current_price);
                                     priceCell.textContent = formattedPrice;
                                     priceCell.title = formattedPrice;
@@ -2505,21 +2505,35 @@
                                 
                                 // Update value change cell
                                 const valueChangeCell = tableRow.querySelector('.value-change-cell');
-                                if (valueChangeCell && !updatedGame.is_wanted) {
-                                    const valueChange = formatValueChange(updatedGame.current_price, updatedGame.purchase_price);
-                                    valueChangeCell.innerHTML = valueChange;
+                                if (valueChangeCell) {
+                                    if (!updatedGame.is_wanted) {
+                                        const valueChange = window.formatValueChange(updatedGame.current_price, updatedGame.purchase_price);
+                                        valueChangeCell.innerHTML = valueChange;
+                                    } else {
+                                        valueChangeCell.innerHTML = '-';
+                                    }
                                 }
                             }
                             
                             // Update expanded card price if it's currently open
                             const gameDetails = document.querySelector(`div.game-details[data-game-id="${gameId}"]`);
                             if (gameDetails) {
-                                // Update current price in the expanded card
-                                const currentPriceDds = gameDetails.querySelectorAll('dd');
-                                currentPriceDds.forEach((dd) => {
+                                // Update current price and change in the expanded card
+                                const ddElements = gameDetails.querySelectorAll('dd');
+                                ddElements.forEach((dd) => {
                                     const dt = dd.previousElementSibling;
-                                    if (dt && (dt.textContent === 'Current Price' || dt.textContent === 'Current')) {
-                                        dd.textContent = formatCurrency(updatedGame.current_price);
+                                    if (dt) {
+                                        const labelText = dt.textContent.trim();
+                                        if (labelText === 'Current Price' || labelText === 'Current') {
+                                            dd.textContent = formatCurrency(updatedGame.current_price);
+                                        } else if (labelText === 'Change') {
+                                            if (!updatedGame.is_wanted) {
+                                                const valueChange = window.formatValueChange(updatedGame.current_price, updatedGame.purchase_price);
+                                                dd.innerHTML = valueChange;
+                                            } else {
+                                                dd.innerHTML = '-';
+                                            }
+                                        }
                                     }
                                 });
                             }
