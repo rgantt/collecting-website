@@ -1549,25 +1549,6 @@
                                                 </button>
                                             </dd>
                                         </div>
-                                        <div class="full-width">
-                                            <dt>Actions</dt>
-                                            <dd>
-                                                <button class="btn btn-sm btn-success purchase-wishlist-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                    📦 Purchase
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-danger ms-2 remove-wishlist-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                    🗑️ Remove
-                                                </button>
-                                            </dd>
-                                        </div>
                                         ` : game.is_lent ? `
                                         <div>
                                             <dt>Lent Date</dt>
@@ -1649,52 +1630,75 @@
                                             </dd>
                                         </div>
                                         `}
+                                        
+                                        <!-- Unified Actions Section -->
                                         <div class="full-width">
                                             <dt>Actions</dt>
                                             <dd>
-                                                ${game.is_for_sale ? `
-                                                <button class="btn btn-sm btn-outline-warning unmark-for-sale-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                    🚫 Unmark for Sale
-                                                </button>
+                                                ${game.is_wanted ? `
+                                                    <!-- Wanted Game Actions -->
+                                                    <button class="btn btn-sm btn-success purchase-wishlist-btn" 
+                                                            data-game-id="${game.id}" 
+                                                            data-game-name="${game.name}"
+                                                            data-game-console="${game.console}"
+                                                            style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                        📦 Purchase
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger ms-2 remove-wishlist-btn" 
+                                                            data-game-id="${game.id}" 
+                                                            data-game-name="${game.name}"
+                                                            data-game-console="${game.console}"
+                                                            style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                        🗑️ Remove from Wishlist
+                                                    </button>
                                                 ` : `
-                                                <button class="btn btn-sm btn-success mark-for-sale-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                    💰 Mark for Sale
-                                                </button>
+                                                    <!-- Owned Game Actions -->
+                                                    ${game.is_lent ? `
+                                                        <!-- Lent Game: Only return and remove options -->
+                                                        <button class="btn btn-sm btn-outline-success unmark-lent-btn" 
+                                                                data-game-id="${game.id}" 
+                                                                data-game-name="${game.name}"
+                                                                data-game-console="${game.console}"
+                                                                data-lent-to="${game.lent_to}"
+                                                                style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                            🔄 Return from Lent
+                                                        </button>
+                                                    ` : `
+                                                        <!-- Available Game: Show sale and lent options -->
+                                                        ${game.is_for_sale ? `
+                                                            <button class="btn btn-sm btn-outline-warning unmark-for-sale-btn" 
+                                                                    data-game-id="${game.id}" 
+                                                                    data-game-name="${game.name}"
+                                                                    data-game-console="${game.console}"
+                                                                    style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                                🚫 Unmark for Sale
+                                                            </button>
+                                                        ` : `
+                                                            <button class="btn btn-sm btn-success mark-for-sale-btn" 
+                                                                    data-game-id="${game.id}" 
+                                                                    data-game-name="${game.name}"
+                                                                    data-game-console="${game.console}"
+                                                                    style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                                💰 Mark for Sale
+                                                            </button>
+                                                        `}
+                                                        <button class="btn btn-sm btn-outline-primary mark-lent-btn ms-2" 
+                                                                data-game-id="${game.id}" 
+                                                                data-game-name="${game.name}"
+                                                                data-game-console="${game.console}"
+                                                                style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                            📤 Mark as Lent
+                                                        </button>
+                                                    `}
+                                                    <button class="btn btn-sm btn-outline-danger remove-from-collection-btn ms-2" 
+                                                            data-game-id="${game.id}" 
+                                                            data-purchased-game-id="${game.purchased_game_id}"
+                                                            data-game-name="${game.name}"
+                                                            data-game-console="${game.console}"
+                                                            style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                        🗑️ Remove from Collection
+                                                    </button>
                                                 `}
-                                                ${game.is_lent ? `
-                                                <button class="btn btn-sm btn-outline-danger unmark-lent-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        data-lent-to="${game.lent_to}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;">
-                                                    🔄 Return from Lent
-                                                </button>
-                                                ` : `
-                                                <button class="btn btn-sm btn-outline-primary mark-lent-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;">
-                                                    📤 Mark as Lent
-                                                </button>
-                                                `}
-                                                <button class="btn btn-sm btn-outline-danger remove-from-collection-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-purchased-game-id="${game.purchased_game_id}"
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-left: 0.5rem;">
-                                                    🗑️ Remove from Collection
-                                                </button>
                                             </dd>
                                         </div>
                                     </dl>
