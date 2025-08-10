@@ -2,10 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: January 2025  
-**Current Version**: API-First System - Production Ready ✅  
+**Last Updated**: August 2025  
+**Current Version**: API-First System with Enhanced Mobile UI - Production Ready ✅  
 **Default Dev Port**: 8082
-**Recent Updates**: Search filter persistence, immediate price updates, URL parameter support
+**Recent Updates**: Complementary details expansion, enhanced mobile support, expandable metadata sections
 
 ## Common Development Commands
 
@@ -92,7 +92,7 @@ This is a Flask-based web application for managing video game collections with t
    - **No ORM**: Direct SQLite queries with context managers for automatic cleanup
    - **Configurable database path**: Tests use temporary databases, production uses `games.db`
 
-4. **Frontend Architecture** (✅ **API-First System**)
+4. **Frontend Architecture** (✅ **API-First System with Enhanced Mobile UI**)
    - Server-side rendering with Jinja2 templates + progressive enhancement
    - **API-First Pattern**: Server confirmation before UI updates (eliminates hanging modals)
      - `static/js/state-manager.js`: Client-side game state management
@@ -100,11 +100,16 @@ This is a Flask-based web application for managing video game collections with t
      - `static/js/main.js`: All API-first operation implementations
    - **Zero page refreshes** for all operations (add, edit, remove, purchase, lent status, price updates)
    - **Immediate UI feedback** after successful server responses
+   - **Enhanced Mobile Support**:
+     - Complementary details expansion (eliminates redundancy between table and expanded view)
+     - Compact summary layout with efficient horizontal information flow
+     - Expandable metadata section for complete game information access
+     - Mobile-friendly Quick Actions section with consistent button styling
    - **Advanced Search Features**:
      - Persistent filters across page reloads (search terms, status, console, condition)
      - URL parameter encoding for bookmarkable/shareable searches (`/?search=mario&status=wanted`)
      - Real-time filtering with debounced search input
-   - **Immediate Price Updates**: Price refresh updates all UI elements without page reload
+   - **Immediate Price Updates**: Price refresh updates all UI elements without page reload (table, summary, metadata)
 
 5. **API Design**
    - RESTful endpoints under `/api/`
@@ -159,11 +164,19 @@ This is a Flask-based web application for managing video game collections with t
 2. **Remove Games**: `removeFromWishlistOptimistic()`, `removeFromCollectionOptimistic()`
 3. **Purchase Conversion**: `purchaseWishlistGameOptimistic()`
 4. **Lent Status**: `markGameAsLentOptimistic()`, `unmarkGameAsLentOptimistic()`
-5. **Edit Details**: `editGameDetailsOptimistic()`
-6. **Price Updates**: `updateGamePrice()` - Updates all UI elements immediately
+5. **Edit Details**: `editGameDetailsOptimistic()` - Now includes condition editing
+6. **Price Updates**: `updateGamePrice()` - Updates all UI elements immediately (table, summary, metadata)
 7. **Search/Filtering**: `applyFilters()`, `updateUrlParameters()` - Persistent and shareable
+8. **UI Interactions**: Metadata toggle buttons, complementary expansion system
 
 Note: Function names contain "Optimistic" for historical reasons, but they now implement API-first pattern.
+
+**Enhanced UI Components**:
+- **Complementary Details Expansion**: Shows only non-redundant information from table row
+- **Compact Summary Layout**: Horizontal flow with purchase → current price display
+- **Expandable Metadata Tables**: Complete game information accessible on mobile
+- **Unified Quick Actions**: All game actions consolidated with consistent outline button styling
+- **Real-time Price Synchronization**: Updates summary, metadata, and table simultaneously
 
 **API-First Pattern** (eliminates hanging modals and data inconsistency):
 ```javascript
@@ -283,6 +296,8 @@ closeModal();  // Prevents hanging modals
 - ✅ **CI/CD Ready**: Tests pass in GitHub Actions without requiring database files
 - ✅ **Advanced Search**: Persistent filters, URL parameters, immediate filtering
 - ✅ **Real-time Price Updates**: Immediate UI updates without page reloads
+- ✅ **Enhanced Mobile UI**: Complementary expansion, compact layouts, expandable metadata
+- ✅ **Complete Data Access**: All game information available on mobile through metadata tables
 
 **CI/CD Integration**:
 - GitHub Actions runs backend tests before deployment
@@ -303,11 +318,12 @@ closeModal();  // Prevents hanging modals
 - Service layer: `*_service.py` files handle business logic
 
 **Frontend**:
-- `app/templates/index.html` - Main UI template with search/filter persistence
-- `app/static/js/main.js` - All API-first operations (8+ major functions including price updates)
+- `app/templates/index.html` - Main UI template with complementary expansion system and mobile-optimized layouts
+- `app/static/js/main.js` - All API-first operations (8+ major functions including enhanced price updates)
 - `app/static/js/state-manager.js` - Client-side state management
 - `app/static/js/error-handler.js` - Toast notifications and error handling
 - **Key Functions**: `window.formatCurrency()`, `window.formatValueChange()` - Global formatting utilities
+- **UI Features**: Metadata toggle handlers, complementary details expansion, unified Quick Actions
 
 **Testing**:
 - `run_tests.py` - Main test runner script (backend tests only)
