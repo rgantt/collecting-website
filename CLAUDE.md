@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Last Updated**: January 2025  
 **Current Version**: API-First System - Production Ready ✅  
 **Default Dev Port**: 8082
+**Recent Updates**: Search filter persistence, immediate price updates, URL parameter support
 
 ## Common Development Commands
 
@@ -97,9 +98,13 @@ This is a Flask-based web application for managing video game collections with t
      - `static/js/state-manager.js`: Client-side game state management
      - `static/js/error-handler.js`: Centralized error handling with toast notifications  
      - `static/js/main.js`: All API-first operation implementations
-   - **Zero page refreshes** for all operations (add, edit, remove, purchase, lent status)
+   - **Zero page refreshes** for all operations (add, edit, remove, purchase, lent status, price updates)
    - **Immediate UI feedback** after successful server responses
-   - Service worker for offline support
+   - **Advanced Search Features**:
+     - Persistent filters across page reloads (search terms, status, console, condition)
+     - URL parameter encoding for bookmarkable/shareable searches (`/?search=mario&status=wanted`)
+     - Real-time filtering with debounced search input
+   - **Immediate Price Updates**: Price refresh updates all UI elements without page reload
 
 5. **API Design**
    - RESTful endpoints under `/api/`
@@ -155,7 +160,8 @@ This is a Flask-based web application for managing video game collections with t
 3. **Purchase Conversion**: `purchaseWishlistGameOptimistic()`
 4. **Lent Status**: `markGameAsLentOptimistic()`, `unmarkGameAsLentOptimistic()`
 5. **Edit Details**: `editGameDetailsOptimistic()`
-6. **Sale Status**: Functions don't exist in current codebase
+6. **Price Updates**: `updateGamePrice()` - Updates all UI elements immediately
+7. **Search/Filtering**: `applyFilters()`, `updateUrlParameters()` - Persistent and shareable
 
 Note: Function names contain "Optimistic" for historical reasons, but they now implement API-first pattern.
 
@@ -275,6 +281,8 @@ closeModal();  // Prevents hanging modals
 - ✅ **Clean Codebase**: Optimistic UI complexity removed
 - ✅ **Robust Testing**: 32 automated tests with production schema consistency
 - ✅ **CI/CD Ready**: Tests pass in GitHub Actions without requiring database files
+- ✅ **Advanced Search**: Persistent filters, URL parameters, immediate filtering
+- ✅ **Real-time Price Updates**: Immediate UI updates without page reloads
 
 **CI/CD Integration**:
 - GitHub Actions runs backend tests before deployment
@@ -295,10 +303,11 @@ closeModal();  // Prevents hanging modals
 - Service layer: `*_service.py` files handle business logic
 
 **Frontend**:
-- `app/templates/index.html` - Main UI template
-- `app/static/js/main.js` - All API-first operations (8 major functions)
+- `app/templates/index.html` - Main UI template with search/filter persistence
+- `app/static/js/main.js` - All API-first operations (8+ major functions including price updates)
 - `app/static/js/state-manager.js` - Client-side state management
 - `app/static/js/error-handler.js` - Toast notifications and error handling
+- **Key Functions**: `window.formatCurrency()`, `window.formatValueChange()` - Global formatting utilities
 
 **Testing**:
 - `run_tests.py` - Main test runner script (backend tests only)
