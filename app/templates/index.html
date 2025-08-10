@@ -904,6 +904,7 @@
                         <h6>Current Details:</h6>
                         <div><strong>Name:</strong> <span id="editDetailsCurrentName"></span></div>
                         <div><strong>Console:</strong> <span id="editDetailsCurrentConsole"></span></div>
+                        <div><strong>Condition:</strong> <span id="editDetailsCurrentCondition"></span></div>
                     </div>
                     
                     <form id="editDetailsForm">
@@ -917,6 +918,15 @@
                             <label for="editGameConsole" class="form-label">Console *</label>
                             <input type="text" class="form-control" id="editGameConsole" required 
                                    placeholder="Enter console name">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="editGameCondition" class="form-label">Condition</label>
+                            <select class="form-select" id="editGameCondition">
+                                <option value="complete">Complete (Complete in Box)</option>
+                                <option value="loose">Loose (Cartridge/Disc Only)</option>
+                                <option value="new">New (Sealed)</option>
+                            </select>
                         </div>
                         
                         <div id="editDetailsError" class="alert alert-danger d-none mt-3"></div>
@@ -1495,218 +1505,128 @@
                         </tr>
                         <tr class="details-row">
                             <td colspan="6" class="p-0">
-                                <div class="game-details" data-game-id="${game.id}">
-                                    <div class="full-name">${game.name}</div>
-                                    <dl>
-                                        <div>
-                                            <dt>Console</dt>
-                                            <dd>
-                                                <span id="console-display-${game.id}">${game.console}</span>
-                                                <button class="btn btn-sm btn-outline-secondary ms-2 edit-details-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.4rem; min-width: auto;"
-                                                        title="Edit Details">
-                                                    ✏️
-                                                </button>
-                                            </dd>
+                                <div class="game-details bg-light border-top" data-game-id="${game.id}" style="padding: 1rem; border-left: 4px solid #007bff;">
+                                    <!-- Complementary Details (Compact Layout) -->
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-12">
+                                            <div class="d-flex flex-wrap gap-3 align-items-center">
+                                                ${!game.is_wanted ? `
+                                                    <div class="d-flex align-items-center gap-1">
+                                                        <span class="text-muted small">💰</span>
+                                                        <span class="fw-bold">${formatCurrency(game.purchase_price)}</span>
+                                                    </div>
+                                                ` : ''}
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <span class="text-muted small">📦</span>
+                                                    <span id="condition-display-${game.id}" class="fw-semibold">${game.condition || 'complete'}</span>
+                                                </div>
+                                                ${game.is_lent ? `
+                                                    <div class="fw-semibold">📤 Lent to ${game.lent_to || 'Unknown'}${game.lent_date ? ` on ${game.lent_date}` : ''}</div>
+                                                ` : ''}
+                                                ${game.is_for_sale ? `
+                                                    <div class="d-flex align-items-center gap-1">
+                                                        <span class="text-muted small">💵</span>
+                                                        <span class="fw-bold text-success">${formatCurrency(game.asking_price)}</span>
+                                                    </div>
+                                                ` : ''}
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <span class="text-muted small">🔄</span>
+                                                    <span id="last-update-${game.id}" class="small text-muted">Loading...</span>
+                                                </div>
+                                            </div>
+                                            ${game.is_for_sale && game.sale_notes ? `
+                                                <div class="mt-1 small text-muted">📝 ${game.sale_notes}</div>
+                                            ` : ''}
                                         </div>
-                                        <div>
-                                            <dt>Status</dt>
-                                            <dd>${status}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Condition</dt>
-                                            <dd>
-                                                <span id="condition-display-${game.id}">${game.condition || 'complete'}</span>
-                                                <button class="btn btn-sm btn-outline-secondary ms-2 edit-condition-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        data-game-name="${game.name}"
-                                                        data-game-console="${game.console}"
-                                                        data-current-condition="${game.condition || 'complete'}"
-                                                        data-is-wanted="${game.is_wanted}"
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.4rem; min-width: auto;"
-                                                        title="Edit Condition">
-                                                    ✏️
-                                                </button>
-                                            </dd>
-                                        </div>
-                                        ${game.is_wanted ? `
-                                        <div>
-                                            <dt>Current Price</dt>
-                                            <dd>${formatCurrency(game.current_price)}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Last Price Update</dt>
-                                            <dd>
-                                                <span id="last-update-${game.id}">Loading...</span>
-                                                <button class="btn btn-sm btn-outline-primary ms-2 update-price-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.4rem; min-width: auto;"
-                                                        title="Update Price">
-                                                    🔄
-                                                </button>
-                                            </dd>
-                                        </div>
-                                        ` : game.is_lent ? `
-                                        <div>
-                                            <dt>Lent Date</dt>
-                                            <dd>${game.lent_date || '-'}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Lent To</dt>
-                                            <dd>${game.lent_to || '-'}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Bought</dt>
-                                            <dd>${formatCurrency(game.purchase_price)}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Current</dt>
-                                            <dd>${formatCurrency(game.current_price)}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Change</dt>
-                                            <dd>${valueChange}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Acquired</dt>
-                                            <dd>${game.acquisition_date || '-'}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Last Price Update</dt>
-                                            <dd>
-                                                <span id="last-update-${game.id}">Loading...</span>
-                                                <button class="btn btn-sm btn-outline-primary ms-2 update-price-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.4rem; min-width: auto;"
-                                                        title="Update Price">
-                                                    🔄
-                                                </button>
-                                            </dd>
-                                        </div>
-                                        ` : `
-                                        <div>
-                                            <dt>Bought</dt>
-                                            <dd>${formatCurrency(game.purchase_price)}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Current</dt>
-                                            <dd>${formatCurrency(game.current_price)}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Change</dt>
-                                            <dd>${valueChange}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Acquired</dt>
-                                            <dd>${game.acquisition_date || '-'}</dd>
-                                        </div>
-                                        ${game.is_for_sale ? `
-                                        <div>
-                                            <dt>Asking Price</dt>
-                                            <dd>${formatCurrency(game.asking_price)}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Sale Notes</dt>
-                                            <dd>${game.sale_notes || '-'}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Marked for Sale</dt>
-                                            <dd>${game.sale_date_marked || '-'}</dd>
-                                        </div>
-                                        ` : ''}
-                                        <div>
-                                            <dt>Last Price Update</dt>
-                                            <dd>
-                                                <span id="last-update-${game.id}">Loading...</span>
-                                                <button class="btn btn-sm btn-outline-primary ms-2 update-price-btn" 
-                                                        data-game-id="${game.id}" 
-                                                        style="font-size: 0.75rem; padding: 0.2rem 0.4rem; min-width: auto;"
-                                                        title="Update Price">
-                                                    🔄
-                                                </button>
-                                            </dd>
-                                        </div>
-                                        `}
-                                        
-                                        <!-- Unified Actions Section -->
-                                        <div class="full-width">
-                                            <dt>Actions</dt>
-                                            <dd>
+                                    </div>
+                                    
+                                    <!-- Quick Actions Section -->
+                                    <div class="mb-2 pb-2 border-bottom">
+                                        <small class="text-muted d-block mb-1">⚡ Quick Actions</small>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            <button class="btn btn-sm btn-outline-secondary edit-details-btn" 
+                                                    data-game-id="${game.id}" 
+                                                    data-game-name="${game.name}"
+                                                    data-game-console="${game.console}"
+                                                    data-current-condition="${game.condition || 'complete'}"
+                                                    data-is-wanted="${game.is_wanted}"
+                                                    style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                ✏️ Edit Details
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-primary update-price-btn" 
+                                                    data-game-id="${game.id}" 
+                                                    style="font-size: 0.7rem; padding: 0.2rem 0.4rem;"
+                                                    title="Update Price">
+                                                🔄 Update Price
+                                            </button>
                                                 ${game.is_wanted ? `
-                                                    <!-- Wanted Game Actions -->
-                                                    <button class="btn btn-sm btn-success purchase-wishlist-btn" 
+                                                    <button class="btn btn-sm btn-outline-success purchase-wishlist-btn" 
                                                             data-game-id="${game.id}" 
                                                             data-game-name="${game.name}"
                                                             data-game-console="${game.console}"
-                                                            style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                                                            style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
                                                         📦 Purchase
                                                     </button>
-                                                    <button class="btn btn-sm btn-outline-danger ms-2 remove-wishlist-btn" 
+                                                    <button class="btn btn-sm btn-outline-danger remove-wishlist-btn" 
                                                             data-game-id="${game.id}" 
                                                             data-game-name="${game.name}"
                                                             data-game-console="${game.console}"
-                                                            style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                        🗑️ Remove from Wishlist
+                                                            style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                        🗑️ Remove
                                                     </button>
                                                 ` : `
-                                                    <!-- Owned Game Actions -->
                                                     ${game.is_lent ? `
-                                                        <!-- Lent Game: Only return and remove options -->
                                                         <button class="btn btn-sm btn-outline-success unmark-lent-btn" 
                                                                 data-game-id="${game.id}" 
                                                                 data-game-name="${game.name}"
                                                                 data-game-console="${game.console}"
                                                                 data-lent-to="${game.lent_to}"
-                                                                style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                            🔄 Return from Lent
+                                                                style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                            🔄 Return
                                                         </button>
                                                     ` : `
-                                                        <!-- Available Game: Show sale and lent options -->
                                                         ${game.is_for_sale ? `
                                                             <button class="btn btn-sm btn-outline-warning unmark-for-sale-btn" 
                                                                     data-game-id="${game.id}" 
                                                                     data-game-name="${game.name}"
                                                                     data-game-console="${game.console}"
-                                                                    style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                                🚫 Unmark for Sale
+                                                                    style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                                🚫 Unmark Sale
                                                             </button>
                                                         ` : `
-                                                            <button class="btn btn-sm btn-success mark-for-sale-btn" 
+                                                            <button class="btn btn-sm btn-outline-success mark-for-sale-btn" 
                                                                     data-game-id="${game.id}" 
                                                                     data-game-name="${game.name}"
                                                                     data-game-console="${game.console}"
-                                                                    style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                                💰 Mark for Sale
+                                                                    style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                                💰 Mark Sale
                                                             </button>
                                                         `}
-                                                        <button class="btn btn-sm btn-outline-primary mark-lent-btn ms-2" 
+                                                        <button class="btn btn-sm btn-outline-primary mark-lent-btn" 
                                                                 data-game-id="${game.id}" 
                                                                 data-game-name="${game.name}"
                                                                 data-game-console="${game.console}"
-                                                                style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                            📤 Mark as Lent
+                                                                style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                            📤 Mark Lent
                                                         </button>
                                                     `}
-                                                    <button class="btn btn-sm btn-outline-danger remove-from-collection-btn ms-2" 
+                                                    <button class="btn btn-sm btn-outline-danger remove-from-collection-btn" 
                                                             data-game-id="${game.id}" 
                                                             data-purchased-game-id="${game.purchased_game_id}"
                                                             data-game-name="${game.name}"
                                                             data-game-console="${game.console}"
-                                                            style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                                                        🗑️ Remove from Collection
+                                                            style="font-size: 0.7rem; padding: 0.2rem 0.4rem;">
+                                                        🗑️ Remove
                                                     </button>
                                                 `}
-                                            </dd>
                                         </div>
-                                    </dl>
-                                    <div class="full-width">
-                                        <dt>Price History</dt>
-                                        <dd>
-                                            <div id="sparkline-${game.id}" class="sparkline-container"></div>
-                                        </dd>
+                                    </div>
+                                    
+                                    <!-- Price History Chart -->
+                                    <div class="pt-2">
+                                        <small class="text-muted d-block mb-2">📈 Price History</small>
+                                        <div id="sparkline-${game.id}" class="sparkline-container"></div>
+                                    </div>
                                     </div>
                                 </div>
                             </td>
@@ -2540,6 +2460,9 @@
                                         }
                                     }
                                 });
+                                
+                                // Update last price update timestamp in expanded card
+                                fetchLastPriceUpdate(gameId);
                             }
                         }
                     } catch (error) {
@@ -2968,18 +2891,21 @@
                 const gameId = e.target.dataset.gameId;
                 const gameName = e.target.dataset.gameName;
                 const gameConsole = e.target.dataset.gameConsole;
+                const currentCondition = e.target.dataset.currentCondition;
                 
-                openEditDetailsModal(gameId, gameName, gameConsole);
+                openEditDetailsModal(gameId, gameName, gameConsole, currentCondition);
             }
         });
 
         // Function to open edit details modal
-        function openEditDetailsModal(gameId, gameName, gameConsole) {
+        function openEditDetailsModal(gameId, gameName, gameConsole, currentCondition) {
             const modal = document.getElementById('editDetailsModal');
             const currentName = document.getElementById('editDetailsCurrentName');
             const currentConsole = document.getElementById('editDetailsCurrentConsole');
+            const currentConditionSpan = document.getElementById('editDetailsCurrentCondition');
             const nameInput = document.getElementById('editGameName');
             const consoleInput = document.getElementById('editGameConsole');
+            const conditionSelect = document.getElementById('editGameCondition');
             const errorDiv = document.getElementById('editDetailsError');
             const successDiv = document.getElementById('editDetailsSuccess');
             
@@ -2990,8 +2916,10 @@
             // Set current values
             currentName.textContent = gameName;
             currentConsole.textContent = gameConsole;
+            currentConditionSpan.textContent = currentCondition || 'complete';
             nameInput.value = gameName;
             consoleInput.value = gameConsole;
+            conditionSelect.value = currentCondition || 'complete';
             
             // Store game ID in modal
             modal.dataset.gameId = gameId;
@@ -3007,6 +2935,7 @@
             const gameId = parseInt(modal.dataset.gameId);
             const newName = document.getElementById('editGameName').value.trim();
             const newConsole = document.getElementById('editGameConsole').value.trim();
+            const newCondition = document.getElementById('editGameCondition').value;
             
             const submitBtn = document.getElementById('submitEditDetailsBtn');
             const errorDiv = document.getElementById('editDetailsError');
@@ -3035,7 +2964,7 @@
             
             try {
                 // Use optimistic update function
-                await window.editGameDetailsOptimistic(gameId, newName, newConsole);
+                await window.editGameDetailsOptimistic(gameId, newName, newConsole, newCondition);
                 
                 // Show success message
                 successDiv.textContent = 'Game details updated successfully!';

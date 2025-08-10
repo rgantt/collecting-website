@@ -786,7 +786,7 @@
     };
 
     // Optimistic edit game details function
-    window.editGameDetailsOptimistic = async function(gameId, newName, newConsole) {
+    window.editGameDetailsOptimistic = async function(gameId, newName, newConsole, newCondition) {
         
         const originalGame = window.gameStateManager.getGame(gameId);
         
@@ -804,7 +804,8 @@
                 },
                 body: JSON.stringify({
                     name: newName,
-                    console: newConsole
+                    console: newConsole,
+                    condition: newCondition
                 })
             });
             
@@ -820,7 +821,8 @@
             const updatedGame = {
                 ...originalGame,
                 name: newName,
-                console: newConsole
+                console: newConsole,
+                condition: newCondition
             };
             
             // Update in state manager
@@ -844,6 +846,7 @@
             // Update expanded details view
             const nameDisplay = document.querySelector(`[data-game-id="${gameId}"] .full-name`);
             const consoleDisplay = document.getElementById(`console-display-${gameId}`);
+            const conditionDisplay = document.getElementById(`condition-display-${gameId}`);
             
             if (nameDisplay) {
                 nameDisplay.textContent = newName;
@@ -851,12 +854,16 @@
             if (consoleDisplay) {
                 consoleDisplay.textContent = newConsole;
             }
+            if (conditionDisplay) {
+                conditionDisplay.textContent = newCondition;
+            }
             
             // Update edit button data attributes
             const editBtn = document.querySelector(`[data-game-id="${gameId}"].edit-details-btn`);
             if (editBtn) {
                 editBtn.dataset.gameName = newName;
                 editBtn.dataset.gameConsole = newConsole;
+                editBtn.dataset.currentCondition = newCondition;
             }
             
             // Update modal data attributes if open
