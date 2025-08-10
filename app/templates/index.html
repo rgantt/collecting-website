@@ -1514,8 +1514,15 @@
                                                     <div class="d-flex align-items-center gap-1">
                                                         <span class="text-muted small">💰</span>
                                                         <span class="fw-bold">${formatCurrency(game.purchase_price)}</span>
+                                                        <span class="text-muted small mx-1">→</span>
+                                                        <span class="fw-bold text-primary">${formatCurrency(game.current_price)}</span>
                                                     </div>
-                                                ` : ''}
+                                                ` : `
+                                                    <div class="d-flex align-items-center gap-1">
+                                                        <span class="text-muted small">💰</span>
+                                                        <span class="fw-bold text-primary">${formatCurrency(game.current_price)}</span>
+                                                    </div>
+                                                `}
                                                 <div class="d-flex align-items-center gap-1">
                                                     <span class="text-muted small">📦</span>
                                                     <span id="condition-display-${game.id}" class="fw-semibold">${game.condition || 'complete'}</span>
@@ -1537,6 +1544,88 @@
                                             ${game.is_for_sale && game.sale_notes ? `
                                                 <div class="mt-1 small text-muted">📝 ${game.sale_notes}</div>
                                             ` : ''}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Expandable Metadata Section -->
+                                    <div class="mb-2">
+                                        <button class="btn btn-sm btn-link p-0 text-decoration-none metadata-toggle-btn" 
+                                                data-game-id="${game.id}"
+                                                style="font-size: 0.8rem; color: #6c757d;">
+                                            <span class="toggle-icon">▶</span> All Game Metadata
+                                        </button>
+                                        <div class="metadata-details mt-2" data-game-id="${game.id}" style="display: none;">
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-borderless mb-0" style="font-size: 0.8rem;">
+                                                    <tbody>
+                                                        <tr>
+                                                            <td class="text-muted" style="width: 40%;">Name:</td>
+                                                            <td class="fw-semibold">${game.name}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Console:</td>
+                                                            <td class="fw-semibold">${game.console}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted">Condition:</td>
+                                                            <td>${game.condition || 'complete'}</td>
+                                                        </tr>
+                                                        ${!game.is_wanted ? `
+                                                            <tr>
+                                                                <td class="text-muted">Purchase Price:</td>
+                                                                <td class="fw-bold">${formatCurrency(game.purchase_price)}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="text-muted">Current Price:</td>
+                                                                <td class="fw-bold text-primary">${formatCurrency(game.current_price)}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="text-muted">Value Change:</td>
+                                                                <td>${valueChange}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="text-muted">Acquisition Date:</td>
+                                                                <td>${game.acquisition_date || '-'}</td>
+                                                            </tr>
+                                                        ` : `
+                                                            <tr>
+                                                                <td class="text-muted">Current Price:</td>
+                                                                <td class="fw-bold text-primary">${formatCurrency(game.current_price)}</td>
+                                                            </tr>
+                                                        `}
+                                                        ${game.is_lent ? `
+                                                            <tr>
+                                                                <td class="text-muted">Lent To:</td>
+                                                                <td class="fw-semibold">${game.lent_to || 'Unknown'}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="text-muted">Lent Date:</td>
+                                                                <td>${game.lent_date || '-'}</td>
+                                                            </tr>
+                                                        ` : ''}
+                                                        ${game.is_for_sale ? `
+                                                            <tr>
+                                                                <td class="text-muted">Asking Price:</td>
+                                                                <td class="fw-bold text-success">${formatCurrency(game.asking_price)}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="text-muted">Sale Date Marked:</td>
+                                                                <td>${game.sale_date_marked || '-'}</td>
+                                                            </tr>
+                                                            ${game.sale_notes ? `
+                                                                <tr>
+                                                                    <td class="text-muted">Sale Notes:</td>
+                                                                    <td>${game.sale_notes}</td>
+                                                                </tr>
+                                                            ` : ''}
+                                                        ` : ''}
+                                                        <tr>
+                                                            <td class="text-muted">Last Price Update:</td>
+                                                            <td><span id="last-update-meta-${game.id}" class="small">Loading...</span></td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
                                     </div>
                                     
@@ -1655,6 +1744,29 @@
                             
                             // Fetch and show price history
                             fetchPriceHistory(gameId);
+                            
+                            // Fetch last price update for metadata section
+                            fetchLastPriceUpdateForMetadata(gameId);
+                        }
+                    });
+                });
+                
+                // Add metadata toggle handlers
+                document.querySelectorAll('.metadata-toggle-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const gameId = this.dataset.gameId;
+                        const metadataDetails = document.querySelector(`.metadata-details[data-game-id="${gameId}"]`);
+                        const toggleIcon = this.querySelector('.toggle-icon');
+                        
+                        if (metadataDetails.style.display === 'none') {
+                            metadataDetails.style.display = 'block';
+                            toggleIcon.textContent = '▼';
+                        } else {
+                            metadataDetails.style.display = 'none';
+                            toggleIcon.textContent = '▶';
                         }
                     });
                 });
@@ -2442,7 +2554,21 @@
                             // Update expanded card price if it's currently open
                             const gameDetails = document.querySelector(`div.game-details[data-game-id="${gameId}"]`);
                             if (gameDetails) {
-                                // Update current price and change in the expanded card
+                                // Update current price in summary line (more specific targeting)
+                                const summaryContainer = gameDetails.querySelector('.d-flex.flex-wrap.gap-3.align-items-center');
+                                if (summaryContainer) {
+                                    // Find the current price span (it's the second price shown, or only price for wanted games)
+                                    const priceSpans = summaryContainer.querySelectorAll('.fw-bold');
+                                    priceSpans.forEach(span => {
+                                        // Update the current price span (text-primary class or second price)
+                                        if (span.classList.contains('text-primary') || 
+                                            (priceSpans.length > 1 && span === priceSpans[1])) {
+                                            span.textContent = formatCurrency(updatedGame.current_price);
+                                        }
+                                    });
+                                }
+                                
+                                // Update current price and change in the old expanded card structure (if any)
                                 const ddElements = gameDetails.querySelectorAll('dd');
                                 ddElements.forEach((dd) => {
                                     const dt = dd.previousElementSibling;
@@ -2461,8 +2587,30 @@
                                     }
                                 });
                                 
+                                // Update metadata table current price and value change
+                                const metadataTable = gameDetails.querySelector('.metadata-details table tbody');
+                                if (metadataTable) {
+                                    const rows = metadataTable.querySelectorAll('tr');
+                                    rows.forEach(row => {
+                                        const label = row.querySelector('td:first-child');
+                                        const value = row.querySelector('td:last-child');
+                                        if (label && value) {
+                                            const labelText = label.textContent.trim();
+                                            if (labelText === 'Current Price:') {
+                                                value.innerHTML = `<span class="fw-bold text-primary">${formatCurrency(updatedGame.current_price)}</span>`;
+                                            } else if (labelText === 'Value Change:') {
+                                                if (!updatedGame.is_wanted) {
+                                                    const valueChange = window.formatValueChange(updatedGame.current_price, updatedGame.purchase_price);
+                                                    value.innerHTML = valueChange;
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                                
                                 // Update last price update timestamp in expanded card
                                 fetchLastPriceUpdate(gameId);
+                                fetchLastPriceUpdateForMetadata(gameId);
                             }
                         }
                     } catch (error) {
@@ -2524,6 +2672,29 @@
                 const updateElement = document.getElementById(`last-update-${gameId}`);
                 if (updateElement) {
                     updateElement.textContent = 'Error';
+                }
+            }
+        }
+        
+        async function fetchLastPriceUpdateForMetadata(gameId) {
+            try {
+                const response = await fetch(`/api/game/${gameId}/last_price_update`);
+                const result = await response.json();
+                
+                const updateElement = document.getElementById(`last-update-meta-${gameId}`);
+                if (updateElement) {
+                    if (result.last_update) {
+                        const date = new Date(result.last_update);
+                        updateElement.textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                    } else {
+                        updateElement.textContent = 'Never';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching metadata price update:', error);
+                const updateElement = document.getElementById(`last-update-meta-${gameId}`);
+                if (updateElement) {
+                    updateElement.textContent = 'Error loading';
                 }
             }
         }
