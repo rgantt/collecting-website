@@ -121,5 +121,36 @@ CREATE TABLE wishlist (
     condition TEXT DEFAULT 'CIB'
 );
 
+-- Photo capture tables
+CREATE TABLE game_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    s3_bucket VARCHAR(255) NOT NULL,
+    s3_key VARCHAR(500) NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    file_size INTEGER NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    upload_timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    uploader_metadata TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_s3_reference UNIQUE(s3_bucket, s3_key)
+);
+
+CREATE TABLE physical_game_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    physical_game_id INTEGER NOT NULL,
+    game_photo_id INTEGER NOT NULL,
+    photo_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (physical_game_id) REFERENCES physical_games(id) ON DELETE CASCADE,
+    FOREIGN KEY (game_photo_id) REFERENCES game_photos(id) ON DELETE CASCADE,
+    CONSTRAINT unique_game_photo UNIQUE(physical_game_id, game_photo_id)
+);
+
 -- Indices
 CREATE UNIQUE INDEX distinct_pricecharting_ids ON pricecharting_games(pricecharting_id);
+CREATE INDEX idx_game_photos_s3_lookup ON game_photos(s3_bucket, s3_key);
+CREATE INDEX idx_game_photos_active ON game_photos(is_active, upload_timestamp);
+CREATE INDEX idx_physical_game_photos_lookup ON physical_game_photos(physical_game_id, photo_order);
+CREATE INDEX idx_physical_game_photos_photo ON physical_game_photos(game_photo_id);

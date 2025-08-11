@@ -3,9 +3,9 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 **Last Updated**: August 2025  
-**Current Version**: API-First System with Enhanced Mobile UI - Production Ready ✅  
+**Current Version**: Complete Photo Upload System + API-First System with Enhanced Mobile UI - Production Ready ✅  
 **Default Dev Port**: 8082
-**Recent Updates**: Complementary details expansion, enhanced mobile support, expandable metadata sections
+**Recent Updates**: Photo upload/viewing feature, S3 integration, complementary details expansion, enhanced mobile support
 
 ## Common Development Commands
 
@@ -53,6 +53,18 @@ sudo -u www-data python3 /var/www/collecting-website/backup_to_s3.py
 
 # Fix database schema issues
 python3 fix_games_for_sale_schema.py
+
+# Apply photo feature migration
+sqlite3 games.db < add_photo_tables.sql
+```
+
+### Environment Variables
+Required for photo upload functionality:
+```bash
+S3_PHOTOS_BUCKET=your-photos-bucket-name
+S3_REGION=us-west-2
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
 ```
 
 ### Deployment
@@ -79,6 +91,8 @@ This is a Flask-based web application for managing video game collections with t
    - `wishlist_service.py`: Handles wishlist functionality
    - `pricecharting_service.py`: Integrates with PriceCharting.com API for price data
    - `price_retrieval.py`: Handles price updates and history tracking
+   - `photo_service.py`: Game photo CRUD operations and S3 key management
+   - `s3_service.py`: AWS S3 integration for photo storage and pre-signed URLs
 
 3. **Database Architecture**
    - SQLite database (`games.db`) with normalized schema:
@@ -89,6 +103,8 @@ This is a Flask-based web application for managing video game collections with t
      - `physical_games_pricecharting_games`: Junction table linking games to price data
      - `lent_games`: Tracking games lent out
      - `games_for_sale`: Items marked for sale
+     - `game_photos`: Photo metadata with S3 references
+     - `physical_game_photos`: Junction table linking photos to games
    - **No ORM**: Direct SQLite queries with context managers for automatic cleanup
    - **Configurable database path**: Tests use temporary databases, production uses `games.db`
 
@@ -122,7 +138,7 @@ This is a Flask-based web application for managing video game collections with t
 2. **Service Layer**: Business logic separated from routes
 3. **API-First UI**: Server confirmation before UI updates for reliability
 4. **Self-hosted focus**: Designed for Ubuntu deployment with systemd
-5. **S3 Backups**: Automated database backups every 6 hours
+5. **S3 Integration**: Photo storage with direct client uploads and automated database backups every 6 hours
 
 ### Deployment Architecture
 
@@ -166,8 +182,9 @@ This is a Flask-based web application for managing video game collections with t
 4. **Lent Status**: `markGameAsLentOptimistic()`, `unmarkGameAsLentOptimistic()`
 5. **Edit Details**: `editGameDetailsOptimistic()` - Now includes condition editing
 6. **Price Updates**: `updateGamePrice()` - Updates all UI elements immediately (table, summary, metadata)
-7. **Search/Filtering**: `applyFilters()`, `updateUrlParameters()` - Persistent and shareable
-8. **UI Interactions**: Metadata toggle buttons, complementary expansion system
+7. **Photo Management**: `uploadPhotos()`, `deletePhoto()`, `openPhotoViewer()` - Full S3 integration
+8. **Search/Filtering**: `applyFilters()`, `updateUrlParameters()` - Persistent and shareable
+9. **UI Interactions**: Metadata toggle buttons, complementary expansion system
 
 Note: Function names contain "Optimistic" for historical reasons, but they now implement API-first pattern.
 
@@ -298,6 +315,7 @@ closeModal();  // Prevents hanging modals
 - ✅ **Real-time Price Updates**: Immediate UI updates without page reloads
 - ✅ **Enhanced Mobile UI**: Complementary expansion, compact layouts, expandable metadata
 - ✅ **Complete Data Access**: All game information available on mobile through metadata tables
+- ✅ **Photo Upload System**: Direct S3 uploads, gallery view, modal viewer, proxy serving to avoid CORS
 
 **CI/CD Integration**:
 - GitHub Actions runs backend tests before deployment
@@ -316,6 +334,7 @@ closeModal();  // Prevents hanging modals
 - `games.db` - Production database (not in version control, auto-downloaded from S3)
 - `test_schema.sql` - Production schema export for tests (single source of truth)
 - Service layer: `*_service.py` files handle business logic
+- `add_photo_tables.sql` - Photo feature database migration
 
 **Frontend**:
 - `app/templates/index.html` - Main UI template with complementary expansion system and mobile-optimized layouts

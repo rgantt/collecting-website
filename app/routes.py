@@ -1213,3 +1213,461 @@ def unmark_game_as_lent(game_id):
     except Exception as e:
         current_app.logger.error(f"Error unmarking game {game_id} as lent out: {str(e)}")
         return jsonify({"error": "Failed to unmark game as lent out"}), 500
+
+
+# ========================================
+# Photo Management API Endpoints
+# ========================================
+
+@main.route('/api/game/<int:game_id>/photos/upload-url', methods=['POST'])
+def get_upload_urls(game_id):
+    """
+    Generate pre-signed POST URLs for direct S3 upload
+    
+    Expected request body:
+    {
+        "files": [
+            {
+                "filename": "game_box.jpg",
+                "content_type": "image/jpeg",
+                "file_size": 1024576
+            }
+        ]
+    }
+    """
+    try:
+        from .photo_service import PhotoService
+        from .s3_service import create_s3_service
+        
+        # Validate request data
+        data = request.get_json()
+        if not data or 'files' not in data:
+            return jsonify({"error": "Missing 'files' array in request body"}), 400
+        
+        files = data['files']
+        if not isinstance(files, list) or len(files) == 0:
+            return jsonify({"error": "Files array must contain at least one file"}), 400
+        
+        if len(files) > current_app.config.get('MAX_PHOTOS_PER_GAME', 20):
+            return jsonify({"error": f"Maximum {current_app.config.get('MAX_PHOTOS_PER_GAME', 20)} photos per game allowed"}), 400
+        
+        # Verify the game exists
+        if not PhotoService.verify_game_exists(game_id):
+            return jsonify({"error": f"Game with ID {game_id} not found"}), 404
+        
+        # Check current photo count
+        current_count = PhotoService.get_photo_count(game_id)
+        if current_count + len(files) > current_app.config.get('MAX_PHOTOS_PER_GAME', 20):
+            remaining = current_app.config.get('MAX_PHOTOS_PER_GAME', 20) - current_count
+            return jsonify({"error": f"Adding {len(files)} photos would exceed limit. Only {remaining} photos can be added."}), 400
+        
+        # Initialize S3 service
+        try:
+            s3_service = create_s3_service()
+        except ValueError as e:
+            current_app.logger.error(f"S3 configuration error: {e}")
+            return jsonify({"error": "Photo upload service not configured"}), 503
+        
+        upload_urls = []
+        max_file_size = current_app.config.get('MAX_PHOTO_SIZE', 5 * 1024 * 1024)
+        allowed_types = current_app.config.get('ALLOWED_PHOTO_TYPES', ['image/jpeg', 'image/png', 'image/webp'])
+        
+        for file_info in files:
+            # Validate file info
+            if not isinstance(file_info, dict):
+                return jsonify({"error": "Each file must be an object with filename, content_type, and file_size"}), 400
+            
+            filename = file_info.get('filename', '').strip()
+            content_type = file_info.get('content_type', '').strip()
+            file_size = file_info.get('file_size', 0)
+            
+            if not filename:
+                return jsonify({"error": "Filename is required for each file"}), 400
+            
+            if not content_type:
+                return jsonify({"error": f"Content type is required for file: {filename}"}), 400
+                
+            if content_type not in allowed_types:
+                return jsonify({"error": f"Unsupported file type: {content_type}. Allowed types: {', '.join(allowed_types)}"}), 400
+            
+            if file_size <= 0 or file_size > max_file_size:
+                max_mb = max_file_size / (1024 * 1024)
+                return jsonify({"error": f"File size must be between 1 byte and {max_mb:.1f} MB for file: {filename}"}), 400
+            
+            # Generate S3 key and pre-signed POST
+            s3_key = PhotoService.generate_s3_key(game_id, filename)
+            
+            try:
+                presigned_post = s3_service.generate_presigned_post(s3_key, content_type, max_file_size)
+                
+                upload_urls.append({
+                    "filename": filename,
+                    "s3_key": s3_key,
+                    "upload_url": presigned_post['url'],
+                    "fields": presigned_post['fields'],
+                    "file_size": file_size,
+                    "content_type": content_type
+                })
+                
+            except Exception as e:
+                current_app.logger.error(f"Error generating pre-signed POST for {filename}: {e}")
+                return jsonify({"error": f"Failed to generate upload URL for {filename}"}), 500
+        
+        current_app.logger.info(f"Generated {len(upload_urls)} pre-signed upload URLs for game {game_id}")
+        
+        return jsonify({
+            "upload_urls": upload_urls,
+            "expires_in_minutes": current_app.config.get('PHOTO_UPLOAD_EXPIRY_MINUTES', 15),
+            "max_file_size_mb": max_file_size / (1024 * 1024),
+            "allowed_types": allowed_types
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating upload URLs for game {game_id}: {e}")
+        return jsonify({"error": "Failed to generate upload URLs"}), 500
+
+
+@main.route('/api/game/<int:game_id>/photos', methods=['POST'])
+def register_uploaded_photos(game_id):
+    """
+    Register successfully uploaded photos in the database
+    
+    Expected request body:
+    {
+        "uploads": [
+            {
+                "s3_key": "photos/123/timestamp_uuid_filename.jpg",
+                "original_filename": "filename.jpg",
+                "file_size": 1024576,
+                "content_type": "image/jpeg"
+            }
+        ]
+    }
+    """
+    try:
+        from .photo_service import PhotoService
+        from .s3_service import create_s3_service
+        
+        # Validate request data
+        data = request.get_json()
+        if not data or 'uploads' not in data:
+            return jsonify({"error": "Missing 'uploads' array in request body"}), 400
+        
+        uploads = data['uploads']
+        if not isinstance(uploads, list) or len(uploads) == 0:
+            return jsonify({"error": "Uploads array must contain at least one upload"}), 400
+        
+        # Verify the game exists
+        if not PhotoService.verify_game_exists(game_id):
+            return jsonify({"error": f"Game with ID {game_id} not found"}), 404
+        
+        # Initialize S3 service
+        try:
+            s3_service = create_s3_service()
+        except ValueError as e:
+            current_app.logger.error(f"S3 configuration error: {e}")
+            return jsonify({"error": "Photo service not configured"}), 503
+        
+        registered_photos = []
+        failed_uploads = []
+        
+        for upload_info in uploads:
+            try:
+                # Validate upload info
+                if not isinstance(upload_info, dict):
+                    failed_uploads.append({
+                        "error": "Upload info must be an object",
+                        "upload_info": upload_info
+                    })
+                    continue
+                
+                s3_key = upload_info.get('s3_key', '').strip()
+                original_filename = upload_info.get('original_filename', '').strip()
+                file_size = upload_info.get('file_size', 0)
+                content_type = upload_info.get('content_type', '').strip()
+                
+                if not all([s3_key, original_filename, content_type]) or file_size <= 0:
+                    failed_uploads.append({
+                        "error": "Missing required fields: s3_key, original_filename, content_type, file_size",
+                        "s3_key": s3_key,
+                        "filename": original_filename
+                    })
+                    continue
+                
+                # Verify S3 object exists
+                s3_metadata = s3_service.verify_object_exists(s3_key)
+                if not s3_metadata:
+                    failed_uploads.append({
+                        "error": "File not found in S3",
+                        "s3_key": s3_key,
+                        "filename": original_filename
+                    })
+                    continue
+                
+                # Use S3 metadata for authoritative file info
+                actual_file_size = s3_metadata['file_size']
+                actual_content_type = s3_metadata['content_type']
+                
+                # Create photo record
+                photo_id = PhotoService.create_photo_record(
+                    s3_bucket=current_app.config['S3_PHOTOS_BUCKET'],
+                    s3_key=s3_key,
+                    original_filename=original_filename,
+                    file_size=actual_file_size,
+                    mime_type=actual_content_type
+                )
+                
+                # Associate with game
+                association_success = PhotoService.associate_photo_with_game(game_id, photo_id)
+                if not association_success:
+                    current_app.logger.warning(f"Photo {photo_id} already associated with game {game_id}")
+                
+                registered_photos.append({
+                    "photo_id": photo_id,
+                    "s3_key": s3_key,
+                    "original_filename": original_filename,
+                    "file_size": actual_file_size,
+                    "content_type": actual_content_type,
+                    "upload_timestamp": s3_metadata.get('last_modified')
+                })
+                
+            except Exception as e:
+                current_app.logger.error(f"Error registering upload {s3_key}: {e}")
+                failed_uploads.append({
+                    "error": f"Database error: {str(e)}",
+                    "s3_key": s3_key,
+                    "filename": original_filename
+                })
+        
+        # Get updated photo count
+        total_photos = PhotoService.get_photo_count(game_id)
+        
+        current_app.logger.info(f"Registered {len(registered_photos)} photos for game {game_id}")
+        
+        response_data = {
+            "registered_photos": registered_photos,
+            "total_photos": total_photos,
+            "success_count": len(registered_photos),
+            "failure_count": len(failed_uploads)
+        }
+        
+        if failed_uploads:
+            response_data["failed_uploads"] = failed_uploads
+            current_app.logger.warning(f"Failed to register {len(failed_uploads)} uploads for game {game_id}")
+        
+        status_code = 200 if len(registered_photos) > 0 else 400
+        return jsonify(response_data), status_code
+        
+    except Exception as e:
+        current_app.logger.error(f"Error registering photos for game {game_id}: {e}")
+        return jsonify({"error": "Failed to register uploaded photos"}), 500
+
+
+@main.route('/api/game/<int:game_id>/photos', methods=['GET'])
+def get_game_photos(game_id):
+    """
+    Get all photos associated with a game
+    
+    Query parameters:
+    - active_only: true/false (default: true)
+    - include_signed_urls: true/false (default: true)
+    - url_expiry: seconds (default: 3600)
+    """
+    try:
+        from .photo_service import PhotoService
+        from .s3_service import create_s3_service
+        
+        # Verify the game exists
+        if not PhotoService.verify_game_exists(game_id):
+            return jsonify({"error": f"Game with ID {game_id} not found"}), 404
+        
+        # Parse query parameters
+        active_only = request.args.get('active_only', 'true').lower() == 'true'
+        include_signed_urls = request.args.get('include_signed_urls', 'true').lower() == 'true'
+        url_expiry = int(request.args.get('url_expiry', 3600))
+        
+        # Get photos from database
+        photos = PhotoService.get_game_photos(game_id, active_only=active_only)
+        
+        # Generate signed URLs if requested
+        s3_service = None
+        if include_signed_urls and photos:
+            try:
+                s3_service = create_s3_service()
+            except ValueError as e:
+                current_app.logger.warning(f"S3 not configured for signed URLs: {e}")
+        
+        photo_list = []
+        for photo in photos:
+            photo_data = {
+                "id": photo['id'],
+                "original_filename": photo['original_filename'],
+                "file_size": photo['file_size'],
+                "mime_type": photo['mime_type'],
+                "upload_timestamp": photo['upload_timestamp'],
+                "photo_order": photo['photo_order']
+            }
+            
+            # Add signed URL if requested and S3 is configured
+            if include_signed_urls and s3_service:
+                try:
+                    signed_url = s3_service.generate_signed_url(photo['s3_key'], url_expiry)
+                    photo_data['signed_url'] = signed_url
+                    photo_data['url_expires_in'] = url_expiry
+                except Exception as e:
+                    current_app.logger.error(f"Error generating signed URL for photo {photo['id']}: {e}")
+            
+            photo_list.append(photo_data)
+        
+        return jsonify({
+            "photos": photo_list,
+            "total_count": len(photo_list),
+            "game_id": game_id
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error retrieving photos for game {game_id}: {e}")
+        return jsonify({"error": "Failed to retrieve photos"}), 500
+
+
+@main.route('/api/game/<int:game_id>/photos/<int:photo_id>', methods=['DELETE'])
+def delete_game_photo(game_id, photo_id):
+    """
+    Delete a photo associated with a game (soft delete)
+    """
+    try:
+        from .photo_service import PhotoService
+        
+        # Verify the game exists
+        if not PhotoService.verify_game_exists(game_id):
+            return jsonify({"error": f"Game with ID {game_id} not found"}), 404
+        
+        # Get photo info before deletion
+        photo = PhotoService.get_photo_by_id(photo_id)
+        if not photo:
+            return jsonify({"error": f"Photo with ID {photo_id} not found"}), 404
+        
+        # Verify photo is associated with this game
+        game_photos = PhotoService.get_game_photos(game_id, active_only=False)
+        photo_ids = [p['id'] for p in game_photos]
+        
+        if photo_id not in photo_ids:
+            return jsonify({"error": f"Photo {photo_id} is not associated with game {game_id}"}), 400
+        
+        # Perform soft delete
+        success = PhotoService.soft_delete_photo(photo_id)
+        if not success:
+            return jsonify({"error": "Photo may already be deleted"}), 400
+        
+        # Get updated photo count
+        total_photos = PhotoService.get_photo_count(game_id)
+        
+        current_app.logger.info(f"Soft deleted photo {photo_id} ({photo['original_filename']}) for game {game_id}")
+        
+        return jsonify({
+            "message": "Photo deleted successfully",
+            "photo_id": photo_id,
+            "filename": photo['original_filename'],
+            "total_photos": total_photos
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error deleting photo {photo_id} for game {game_id}: {e}")
+        return jsonify({"error": "Failed to delete photo"}), 500
+
+
+@main.route('/api/photos/s3-config', methods=['GET'])
+def get_s3_configuration():
+    """
+    Get S3 configuration status for troubleshooting
+    """
+    try:
+        from .s3_service import create_s3_service
+        
+        try:
+            s3_service = create_s3_service()
+            validation = s3_service.validate_configuration()
+            
+            return jsonify({
+                "s3_configured": validation['is_valid'],
+                "bucket_name": current_app.config.get('S3_PHOTOS_BUCKET', 'Not configured'),
+                "region": current_app.config.get('S3_REGION', 'Not configured'),
+                "max_file_size_mb": current_app.config.get('MAX_PHOTO_SIZE', 0) / (1024 * 1024),
+                "max_photos_per_game": current_app.config.get('MAX_PHOTOS_PER_GAME', 0),
+                "allowed_types": current_app.config.get('ALLOWED_PHOTO_TYPES', []),
+                "upload_expiry_minutes": current_app.config.get('PHOTO_UPLOAD_EXPIRY_MINUTES', 0),
+                "validation": validation
+            })
+            
+        except ValueError as e:
+            return jsonify({
+                "s3_configured": False,
+                "error": str(e),
+                "bucket_name": current_app.config.get('S3_PHOTOS_BUCKET', 'Not configured'),
+                "region": current_app.config.get('S3_REGION', 'Not configured')
+            })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error checking S3 configuration: {e}")
+        return jsonify({"error": "Failed to check configuration"}), 500
+
+
+@main.route('/api/photos/<int:photo_id>/view', methods=['GET'])
+def view_photo(photo_id):
+    """
+    Proxy endpoint to serve photo content from S3, avoiding CORS issues
+    """
+    try:
+        from app.photo_service import PhotoService
+        from app.s3_service import create_s3_service
+        import requests
+        
+        # Get photo record
+        photo = PhotoService.get_photo_by_id(photo_id)
+        if not photo or not photo['is_active']:
+            return jsonify({"error": "Photo not found"}), 404
+        
+        # Initialize S3 service and verify object exists first
+        s3_service = create_s3_service()
+        
+        # Try to verify the object exists before generating signed URL
+        object_metadata = s3_service.verify_object_exists(photo['s3_key'])
+        if not object_metadata:
+            current_app.logger.error(f"S3 object not found for key: {photo['s3_key']}")
+            return jsonify({"error": "Photo not found in storage"}), 404
+        
+        signed_url = s3_service.generate_signed_url(photo['s3_key'])
+        
+        # Fetch the image from S3
+        try:
+            response = requests.get(signed_url, timeout=10)
+            if response.status_code != 200:
+                current_app.logger.error(f"Failed to fetch photo from S3: {response.status_code}")
+                return jsonify({"error": "Failed to load photo"}), 503
+        except requests.exceptions.Timeout:
+            current_app.logger.error(f"Timeout fetching photo from S3")
+            return jsonify({"error": "Timeout loading photo"}), 504
+        except requests.exceptions.RequestException as e:
+            current_app.logger.error(f"Request error fetching photo: {e}")
+            return jsonify({"error": "Request error"}), 503
+        
+        # Return the image with proper content type
+        from flask import Response
+        import re
+        
+        # Sanitize filename for HTTP headers (remove or replace problematic characters)
+        safe_filename = re.sub(r'[^\x00-\x7F]', '_', photo['original_filename'])  # Replace non-ASCII with underscore
+        
+        return Response(
+            response.content,
+            content_type=photo['mime_type'],
+            headers={
+                'Content-Length': str(len(response.content)),
+                'Cache-Control': 'public, max-age=3600',  # Cache for 1 hour
+                'Content-Disposition': f'inline; filename="{safe_filename}"'
+            }
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"Error serving photo {photo_id}: {e}")
+        return jsonify({"error": "Failed to serve photo"}), 500

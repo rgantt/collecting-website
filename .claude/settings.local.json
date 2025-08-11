@@ -21,7 +21,8 @@
       "Bash(gh run view:*)",
       "Bash(find:*)",
       "Bash(node:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(sqlite3:*)"
     ],
     "deny": []
   }

@@ -1182,6 +1182,121 @@
         </div>
     </div>
 
+    <!-- Photo Upload Modal -->
+    <div class="modal fade" id="photoUploadModal" tabindex="-1" aria-labelledby="photoUploadModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="photoUploadModalLabel">
+                        📸 Add Photos
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="photoUploadGameInfo" class="mb-3 p-3 border rounded bg-light">
+                        <h6 id="photoUploadGameName" class="mb-1"></h6>
+                        <small id="photoUploadGameConsole" class="text-muted"></small>
+                    </div>
+                    
+                    <!-- Photo Upload Section -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">Upload New Photos</h6>
+                            <small class="text-muted">Max 5MB per photo</small>
+                        </div>
+                        
+                        <!-- Photo Input -->
+                        <div class="mb-3">
+                            <input type="file" class="form-control" id="photoFiles" 
+                                   accept="image/jpeg,image/png,image/webp" multiple
+                                   style="display: none;">
+                            
+                            <!-- Upload Options -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                <button type="button" class="btn btn-primary" id="selectFilesBtn">
+                                    📁 Select Files
+                                </button>
+                                <button type="button" class="btn btn-success" id="openCameraBtn" style="display: none;">
+                                    📷 Use Camera
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Preview Area -->
+                        <div id="photoPreviewArea" class="row g-2" style="display: none;">
+                            <div class="col-12">
+                                <h6 class="text-muted">Selected Photos:</h6>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload Progress -->
+                        <div id="uploadProgressArea" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">Uploading photos...</small>
+                                <small id="uploadProgressText">0%</small>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" id="uploadProgressBar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Existing Photos Section -->
+                    <div id="existingPhotosSection" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">Current Photos</h6>
+                            <small class="text-muted" id="photoCountBadge">0 photos</small>
+                        </div>
+                        
+                        <div id="existingPhotosList" class="row g-2">
+                            <!-- Existing photos will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div id="photoUploadError" class="alert alert-danger d-none mt-3"></div>
+                    <div id="photoUploadSuccess" class="alert alert-success d-none mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="uploadPhotosBtn" disabled>
+                        Upload Photos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Viewer Modal -->
+    <div class="modal fade" id="photoViewerModal" tabindex="-1" aria-labelledby="photoViewerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="photoViewerModalLabel">Photo Viewer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="photoViewerImage" class="img-fluid" style="max-height: 70vh;" alt="Game Photo">
+                    <div class="mt-3">
+                        <small class="text-muted" id="photoViewerInfo"></small>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary" id="prevPhotoBtn">
+                            ← Previous
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="nextPhotoBtn">
+                            Next →
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger" id="deletePhotoBtn">
+                        🗑️ Delete Photo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- JavaScript Dependencies -->
@@ -1527,6 +1642,10 @@
                                                     <span class="text-muted small">📦</span>
                                                     <span id="condition-display-${game.id}" class="fw-semibold">${game.condition || 'complete'}</span>
                                                 </div>
+                                                <div class="d-flex align-items-center gap-1" id="photo-count-${game.id}" style="display: none !important;">
+                                                    <span class="text-muted small">📸</span>
+                                                    <span class="fw-semibold text-info" id="photo-count-text-${game.id}">0 photos</span>
+                                                </div>
                                                 ${game.is_lent ? `
                                                     <div class="fw-semibold">📤 Lent to ${game.lent_to || 'Unknown'}${game.lent_date ? ` on ${game.lent_date}` : ''}</div>
                                                 ` : ''}
@@ -1619,6 +1738,10 @@
                                                                 </tr>
                                                             ` : ''}
                                                         ` : ''}
+                                                        <tr id="photos-meta-row-${game.id}" style="display: none;">
+                                                            <td class="text-muted">Photos:</td>
+                                                            <td id="photos-meta-${game.id}">Loading...</td>
+                                                        </tr>
                                                         <tr>
                                                             <td class="text-muted">Last Price Update:</td>
                                                             <td><span id="last-update-meta-${game.id}" class="small">Loading...</span></td>
@@ -1647,6 +1770,14 @@
                                                     style="font-size: 0.7rem; padding: 0.2rem 0.4rem;"
                                                     title="Update Price">
                                                 🔄 Update Price
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-info add-photos-btn" 
+                                                    data-game-id="${game.id}" 
+                                                    data-game-name="${game.name}"
+                                                    data-game-console="${game.console}"
+                                                    style="font-size: 0.7rem; padding: 0.2rem 0.4rem;"
+                                                    title="Add Photos">
+                                                📸 Add Photos
                                             </button>
                                                 ${game.is_wanted ? `
                                                     <button class="btn btn-sm btn-outline-success purchase-wishlist-btn" 
@@ -1747,6 +1878,9 @@
                             
                             // Fetch last price update for metadata section
                             fetchLastPriceUpdateForMetadata(gameId);
+                            
+                            // Load photo count for this game
+                            loadPhotoCount(gameId);
                         }
                     });
                 });
@@ -3914,6 +4048,471 @@
                 submitBtn.textContent = 'Remove from Collection';
             }
         });
+
+        // Photo Upload Modal Functionality
+        let currentGameIdForPhotos = null;
+        let selectedPhotoFiles = [];
+        let existingGamePhotos = [];
+
+        // Handle photo upload button clicks
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('add-photos-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const gameId = e.target.dataset.gameId;
+                const gameName = e.target.dataset.gameName;
+                const gameConsole = e.target.dataset.gameConsole;
+                
+                if (gameId && gameName && gameConsole) {
+                    openPhotoUploadModal(gameId, gameName, gameConsole);
+                }
+            }
+        });
+
+        async function openPhotoUploadModal(gameId, gameName, gameConsole) {
+            currentGameIdForPhotos = gameId;
+            
+            // Set game info in modal
+            document.getElementById('photoUploadGameName').textContent = gameName;
+            document.getElementById('photoUploadGameConsole').textContent = gameConsole;
+            
+            // Reset modal state
+            resetPhotoUploadModal();
+            
+            // Load existing photos
+            await loadExistingPhotos(gameId);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('photoUploadModal'));
+            modal.show();
+        }
+
+        function resetPhotoUploadModal() {
+            selectedPhotoFiles = [];
+            document.getElementById('photoFiles').value = '';
+            document.getElementById('photoPreviewArea').style.display = 'none';
+            document.getElementById('photoPreviewArea').innerHTML = '<div class="col-12"><h6 class="text-muted">Selected Photos:</h6></div>';
+            document.getElementById('uploadProgressArea').style.display = 'none';
+            document.getElementById('uploadPhotosBtn').disabled = true;
+            document.getElementById('photoUploadError').classList.add('d-none');
+            document.getElementById('photoUploadSuccess').classList.add('d-none');
+            
+            // Check if camera is available (mobile devices)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                document.getElementById('openCameraBtn').style.display = 'inline-block';
+            }
+        }
+
+        async function loadExistingPhotos(gameId) {
+            try {
+                const response = await fetch(`/api/game/${gameId}/photos`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    existingGamePhotos = data.photos || [];
+                    displayExistingPhotos();
+                } else {
+                    console.error('Failed to load photos:', data.message);
+                }
+            } catch (error) {
+                console.error('Error loading photos:', error);
+            }
+        }
+
+        function displayExistingPhotos() {
+            const photosSection = document.getElementById('existingPhotosSection');
+            const photosList = document.getElementById('existingPhotosList');
+            const countBadge = document.getElementById('photoCountBadge');
+            
+            if (existingGamePhotos.length === 0) {
+                photosSection.style.display = 'none';
+                return;
+            }
+            
+            photosSection.style.display = 'block';
+            countBadge.textContent = `${existingGamePhotos.length} photo${existingGamePhotos.length === 1 ? '' : 's'}`;
+            
+            photosList.innerHTML = existingGamePhotos.map(photo => `
+                <div class="col-md-3 col-sm-4 col-6">
+                    <div class="card">
+                        <div class="position-relative">
+                            <img src="/api/photos/${photo.id}/view" class="card-img-top" style="height: 120px; object-fit: cover; cursor: pointer;" 
+                                 onclick="openPhotoViewer(${photo.id}, '/api/photos/${photo.id}/view', '${photo.original_filename}')"
+                                 alt="${photo.original_filename}">
+                            <div class="position-absolute top-0 end-0 p-1">
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        onclick="deletePhoto(${photo.id}, '${photo.original_filename}')"
+                                        title="Delete Photo">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-2">
+                            <small class="text-muted d-block text-truncate" title="${photo.original_filename}">
+                                ${photo.original_filename}
+                            </small>
+                            <small class="text-muted">${formatFileSize(photo.file_size)}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // File selection handlers
+        document.getElementById('selectFilesBtn').addEventListener('click', function() {
+            document.getElementById('photoFiles').click();
+        });
+
+        document.getElementById('photoFiles').addEventListener('change', function(e) {
+            handleFileSelection(e.target.files);
+        });
+
+        document.getElementById('openCameraBtn').addEventListener('click', function() {
+            // For camera capture, we'll use the file input with capture attribute
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.capture = 'camera';
+            input.multiple = true;
+            input.addEventListener('change', function(e) {
+                handleFileSelection(e.target.files);
+            });
+            input.click();
+        });
+
+        function handleFileSelection(files) {
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            const validFiles = [];
+            const errors = [];
+
+            Array.from(files).forEach(file => {
+                if (!allowedTypes.includes(file.type)) {
+                    errors.push(`${file.name}: Invalid file type. Only JPEG, PNG, and WebP are allowed.`);
+                    return;
+                }
+                
+                if (file.size > maxSize) {
+                    errors.push(`${file.name}: File too large. Maximum size is 5MB.`);
+                    return;
+                }
+                
+                validFiles.push(file);
+            });
+
+            if (errors.length > 0) {
+                const errorAlert = document.getElementById('photoUploadError');
+                errorAlert.textContent = 'File Validation Errors:\n' + errors.join('\n');
+                errorAlert.classList.remove('d-none');
+                return;
+            }
+
+            selectedPhotoFiles = validFiles;
+            displayPhotoPreview();
+            
+            document.getElementById('uploadPhotosBtn').disabled = validFiles.length === 0;
+        }
+
+        function displayPhotoPreview() {
+            const previewArea = document.getElementById('photoPreviewArea');
+            
+            if (selectedPhotoFiles.length === 0) {
+                previewArea.style.display = 'none';
+                return;
+            }
+
+            previewArea.style.display = 'block';
+            previewArea.innerHTML = `
+                <div class="col-12">
+                    <h6 class="text-muted">Selected Photos (${selectedPhotoFiles.length}):</h6>
+                </div>
+                ${selectedPhotoFiles.map((file, index) => `
+                    <div class="col-md-3 col-sm-4 col-6">
+                        <div class="card">
+                            <div class="position-relative">
+                                <img src="${URL.createObjectURL(file)}" class="card-img-top" 
+                                     style="height: 120px; object-fit: cover;" alt="${file.name}">
+                                <div class="position-absolute top-0 end-0 p-1">
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="removeSelectedFile(${index})"
+                                            title="Remove">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <small class="text-muted d-block text-truncate" title="${file.name}">
+                                    ${file.name}
+                                </small>
+                                <small class="text-muted">${formatFileSize(file.size)}</small>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        function removeSelectedFile(index) {
+            selectedPhotoFiles.splice(index, 1);
+            displayPhotoPreview();
+            document.getElementById('uploadPhotosBtn').disabled = selectedPhotoFiles.length === 0;
+        }
+
+        // Upload photos
+        document.getElementById('uploadPhotosBtn').addEventListener('click', async function() {
+            if (selectedPhotoFiles.length === 0) return;
+            
+            try {
+                await uploadPhotos();
+            } catch (error) {
+                console.error('Upload error:', error);
+                const errorAlert = document.getElementById('photoUploadError');
+                errorAlert.textContent = 'Upload failed: ' + error.message;
+                errorAlert.classList.remove('d-none');
+            }
+        });
+
+        async function uploadPhotos() {
+            const progressArea = document.getElementById('uploadProgressArea');
+            const progressBar = document.getElementById('uploadProgressBar');
+            const progressText = document.getElementById('uploadProgressText');
+            
+            progressArea.style.display = 'block';
+            document.getElementById('uploadPhotosBtn').disabled = true;
+            
+            let completedUploads = 0;
+            const totalUploads = selectedPhotoFiles.length;
+            
+            for (const file of selectedPhotoFiles) {
+                try {
+                    // Generate S3 key
+                    const s3Key = `photos/${currentGameIdForPhotos}/${Date.now()}_${Math.random().toString(36).substring(2, 10)}_${file.name}`;
+                    
+                    // Get presigned URL
+                    const urlResponse = await fetch(`/api/game/${currentGameIdForPhotos}/photos/upload-url`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            files: [{
+                                filename: file.name,
+                                content_type: file.type,
+                                file_size: file.size
+                            }]
+                        })
+                    });
+                    
+                    const urlData = await urlResponse.json();
+                    if (!urlResponse.ok) throw new Error(urlData.error || 'Failed to get upload URL');
+                    
+                    // Get the upload URL data (first item since we send one file at a time)
+                    const uploadInfo = urlData.upload_urls[0];
+                    
+                    // Upload to S3
+                    const formData = new FormData();
+                    Object.keys(uploadInfo.fields).forEach(key => {
+                        formData.append(key, uploadInfo.fields[key]);
+                    });
+                    formData.append('file', file);
+                    
+                    const uploadResponse = await fetch(uploadInfo.upload_url, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!uploadResponse.ok) throw new Error('S3 upload failed');
+                    
+                    // Register photo in database
+                    const registerResponse = await fetch(`/api/game/${currentGameIdForPhotos}/photos`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            uploads: [{
+                                s3_key: uploadInfo.s3_key,
+                                original_filename: file.name,
+                                file_size: file.size,
+                                content_type: file.type
+                            }]
+                        })
+                    });
+                    
+                    if (!registerResponse.ok) {
+                        const registerData = await registerResponse.json();
+                        throw new Error(registerData.message || 'Failed to register photo');
+                    }
+                    
+                    completedUploads++;
+                    const progress = Math.round((completedUploads / totalUploads) * 100);
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `${progress}%`;
+                    
+                } catch (error) {
+                    console.error('Error uploading file:', file.name, error);
+                    throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+                }
+            }
+            
+            // Upload complete
+            const successAlert = document.getElementById('photoUploadSuccess');
+            successAlert.textContent = `Successfully uploaded ${totalUploads} photo${totalUploads === 1 ? '' : 's'}!`;
+            successAlert.classList.remove('d-none');
+            
+            // Reset and reload
+            selectedPhotoFiles = [];
+            document.getElementById('photoFiles').value = '';
+            displayPhotoPreview();
+            await loadExistingPhotos(currentGameIdForPhotos);
+            
+            // Update photo count in expanded card if visible
+            await loadPhotoCount(currentGameIdForPhotos);
+            
+            progressArea.style.display = 'none';
+            document.getElementById('uploadPhotosBtn').disabled = true;
+        }
+
+        // Photo viewer functions
+        let currentPhotoIndex = 0;
+        
+        function openPhotoViewer(photoId, photoUrl, filename) {
+            currentPhotoIndex = existingGamePhotos.findIndex(photo => photo.id === photoId);
+            
+            document.getElementById('photoViewerImage').src = photoUrl;
+            document.getElementById('photoViewerInfo').textContent = filename;
+            
+            // Update navigation buttons
+            document.getElementById('prevPhotoBtn').style.display = existingGamePhotos.length > 1 ? 'inline-block' : 'none';
+            document.getElementById('nextPhotoBtn').style.display = existingGamePhotos.length > 1 ? 'inline-block' : 'none';
+            
+            // Set delete button
+            document.getElementById('deletePhotoBtn').onclick = () => deletePhoto(photoId, filename);
+            
+            const modal = new bootstrap.Modal(document.getElementById('photoViewerModal'));
+            modal.show();
+        }
+
+        document.getElementById('prevPhotoBtn').addEventListener('click', function() {
+            currentPhotoIndex = (currentPhotoIndex - 1 + existingGamePhotos.length) % existingGamePhotos.length;
+            const photo = existingGamePhotos[currentPhotoIndex];
+            document.getElementById('photoViewerImage').src = `/api/photos/${photo.id}/view`;
+            document.getElementById('photoViewerInfo').textContent = photo.original_filename;
+            document.getElementById('deletePhotoBtn').onclick = () => deletePhoto(photo.id, photo.original_filename);
+        });
+
+        document.getElementById('nextPhotoBtn').addEventListener('click', function() {
+            currentPhotoIndex = (currentPhotoIndex + 1) % existingGamePhotos.length;
+            const photo = existingGamePhotos[currentPhotoIndex];
+            document.getElementById('photoViewerImage').src = `/api/photos/${photo.id}/view`;
+            document.getElementById('photoViewerInfo').textContent = photo.original_filename;
+            document.getElementById('deletePhotoBtn').onclick = () => deletePhoto(photo.id, photo.original_filename);
+        });
+
+        async function deletePhoto(photoId, filename) {
+            if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+            
+            try {
+                const response = await fetch(`/api/game/${currentGameIdForPhotos}/photos/${photoId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Close viewer if it's open
+                    const viewerModal = bootstrap.Modal.getInstance(document.getElementById('photoViewerModal'));
+                    if (viewerModal) viewerModal.hide();
+                    
+                    // Reload photos
+                    await loadExistingPhotos(currentGameIdForPhotos);
+                    
+                    // Update photo count in expanded card if visible
+                    await loadPhotoCount(currentGameIdForPhotos);
+                    
+                    const successAlert = document.getElementById('photoUploadSuccess');
+                    successAlert.textContent = `"${filename}" has been deleted.`;
+                    successAlert.classList.remove('d-none');
+                } else {
+                    throw new Error(data.message || 'Failed to delete photo');
+                }
+            } catch (error) {
+                console.error('Error deleting photo:', error);
+                const errorAlert = document.getElementById('photoUploadError');
+                errorAlert.textContent = 'Failed to delete photo: ' + error.message;
+                errorAlert.classList.remove('d-none');
+            }
+        }
+
+        // Load and display photo count for expanded cards
+        async function loadPhotoCount(gameId) {
+            try {
+                const response = await fetch(`/api/game/${gameId}/photos`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const photos = data.photos || [];
+                    const photoCount = photos.length;
+                    updatePhotoCountDisplay(gameId, photoCount);
+                    updatePhotoMetadataDisplay(gameId, photos);
+                } else {
+                    console.error('Failed to load photo count for game', gameId, ':', data.message);
+                }
+            } catch (error) {
+                console.error('Error loading photo count for game', gameId, ':', error);
+            }
+        }
+
+        function updatePhotoCountDisplay(gameId, count) {
+            const photoCountElement = document.getElementById(`photo-count-${gameId}`);
+            const photoCountText = document.getElementById(`photo-count-text-${gameId}`);
+            
+            if (photoCountElement && photoCountText) {
+                if (count > 0) {
+                    photoCountText.textContent = `${count} photo${count === 1 ? '' : 's'}`;
+                    photoCountElement.style.display = 'flex';
+                } else {
+                    photoCountElement.style.display = 'none';
+                }
+            }
+        }
+
+        function updatePhotoMetadataDisplay(gameId, photos) {
+            const photosMetaRow = document.getElementById(`photos-meta-row-${gameId}`);
+            const photosMetaCell = document.getElementById(`photos-meta-${gameId}`);
+            
+            if (!photosMetaRow || !photosMetaCell) return;
+            
+            if (photos.length === 0) {
+                photosMetaRow.style.display = 'none';
+                return;
+            }
+            
+            photosMetaRow.style.display = 'table-row';
+            
+            const photoLinks = photos.map(photo => 
+                `<a href="/api/photos/${photo.id}/view" 
+                   onclick="event.preventDefault(); openPhotoViewer(${photo.id}, '/api/photos/${photo.id}/view', '${photo.original_filename}');"
+                   class="text-decoration-none me-2"
+                   title="${photo.original_filename}">
+                    📷 ${photo.original_filename}
+                </a>`
+            ).join('<br>');
+            
+            photosMetaCell.innerHTML = `
+                <div class="d-flex flex-column">
+                    <small class="text-muted mb-1">${photos.length} photo${photos.length === 1 ? '' : 's'}</small>
+                    <div style="font-size: 0.75rem;">
+                        ${photoLinks}
+                    </div>
+                </div>
+            `;
+        }
 
     </script>
 
