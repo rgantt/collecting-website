@@ -1282,10 +1282,12 @@
                     </div>
                 </div>
                 <div class="modal-footer justify-content-between">
-                    <div>
+                    <div></div> <!-- Empty div for spacing -->
+                    <div class="d-flex align-items-center gap-3">
                         <button type="button" class="btn btn-outline-secondary" id="prevPhotoBtn">
                             ← Previous
                         </button>
+                        <span class="text-muted" id="photoCounter">1 / 1</span>
                         <button type="button" class="btn btn-outline-secondary" id="nextPhotoBtn">
                             Next →
                         </button>
@@ -1644,8 +1646,13 @@
                                                     <span id="condition-display-${game.id}" class="fw-semibold">${game.condition || 'complete'}</span>
                                                 </div>
                                                 <div class="d-flex align-items-center gap-1" id="photo-count-${game.id}" style="display: none !important;">
-                                                    <span class="text-muted small">📸</span>
-                                                    <span class="fw-semibold text-info" id="photo-count-text-${game.id}">0 photos</span>
+                                                    <a href="#" id="photo-count-link-${game.id}" 
+                                                       class="text-decoration-none d-flex align-items-center gap-1"
+                                                       onclick="event.preventDefault(); openPhotoGallery(${game.id});"
+                                                       title="View photos">
+                                                        <span class="text-muted small">📸</span>
+                                                        <span class="fw-semibold text-info" id="photo-count-text-${game.id}">0 photos</span>
+                                                    </a>
                                                 </div>
                                                 ${game.is_lent ? `
                                                     <div class="fw-semibold">📤 Lent to ${game.lent_to || 'Unknown'}${game.lent_date ? ` on ${game.lent_date}` : ''}</div>
@@ -4449,11 +4456,20 @@
             document.getElementById('prevPhotoBtn').style.display = existingGamePhotos.length > 1 ? 'inline-block' : 'none';
             document.getElementById('nextPhotoBtn').style.display = existingGamePhotos.length > 1 ? 'inline-block' : 'none';
             
+            // Update photo counter
+            updatePhotoCounter();
+            
             // Set delete button
             document.getElementById('deletePhotoBtn').onclick = () => deletePhoto(photoId, filename);
             
             const modal = new bootstrap.Modal(document.getElementById('photoViewerModal'));
+            
+            // Enable keyboard navigation when modal shows
             modal.show();
+            enablePhotoViewerKeyboard();
+            
+            // Disable keyboard navigation when modal hides
+            document.getElementById('photoViewerModal').addEventListener('hidden.bs.modal', disablePhotoViewerKeyboard, { once: true });
         }
 
         document.getElementById('prevPhotoBtn').addEventListener('click', function() {
@@ -4462,6 +4478,7 @@
             document.getElementById('photoViewerImage').src = `/api/photos/${photo.id}/view`;
             document.getElementById('photoViewerInfo').textContent = photo.original_filename;
             document.getElementById('deletePhotoBtn').onclick = () => deletePhoto(photo.id, photo.original_filename);
+            updatePhotoCounter();
         });
 
         document.getElementById('nextPhotoBtn').addEventListener('click', function() {
@@ -4470,6 +4487,7 @@
             document.getElementById('photoViewerImage').src = `/api/photos/${photo.id}/view`;
             document.getElementById('photoViewerInfo').textContent = photo.original_filename;
             document.getElementById('deletePhotoBtn').onclick = () => deletePhoto(photo.id, photo.original_filename);
+            updatePhotoCounter();
         });
 
         async function deletePhoto(photoId, filename) {
@@ -4553,23 +4571,94 @@
             
             photosMetaRow.style.display = 'table-row';
             
-            const photoLinks = photos.map(photo => 
-                `<a href="/api/photos/${photo.id}/view" 
-                   onclick="event.preventDefault(); openPhotoViewer(${photo.id}, '/api/photos/${photo.id}/view', '${photo.original_filename}');"
-                   class="text-decoration-none me-2"
-                   title="${photo.original_filename}">
-                    📷 ${photo.original_filename}
-                </a>`
-            ).join('<br>');
-            
             photosMetaCell.innerHTML = `
                 <div class="d-flex flex-column">
                     <small class="text-muted mb-1">${photos.length} photo${photos.length === 1 ? '' : 's'}</small>
                     <div style="font-size: 0.75rem;">
-                        ${photoLinks}
+                        <a href="#" 
+                           onclick="event.preventDefault(); openPhotoGallery(${gameId});"
+                           class="text-decoration-none"
+                           title="View all photos for this game">
+                            📷 View Photos
+                        </a>
                     </div>
                 </div>
             `;
+        }
+
+        // Keyboard navigation for photo viewer
+        let photoViewerKeydownHandler = null;
+        
+        // Add keyboard navigation when photo viewer opens
+        function enablePhotoViewerKeyboard() {
+            // Remove any existing handler
+            if (photoViewerKeydownHandler) {
+                document.removeEventListener('keydown', photoViewerKeydownHandler);
+            }
+            
+            photoViewerKeydownHandler = function(event) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('photoViewerModal'));
+                if (!modal || !modal._isShown) return; // Only handle if modal is open
+                
+                switch(event.key) {
+                    case 'ArrowLeft':
+                        event.preventDefault();
+                        document.getElementById('prevPhotoBtn').click();
+                        break;
+                    case 'ArrowRight': 
+                        event.preventDefault();
+                        document.getElementById('nextPhotoBtn').click();
+                        break;
+                    case 'Escape':
+                        event.preventDefault();
+                        modal.hide();
+                        break;
+                }
+            };
+            
+            document.addEventListener('keydown', photoViewerKeydownHandler);
+        }
+        
+        // Remove keyboard navigation when photo viewer closes
+        function disablePhotoViewerKeyboard() {
+            if (photoViewerKeydownHandler) {
+                document.removeEventListener('keydown', photoViewerKeydownHandler);
+                photoViewerKeydownHandler = null;
+            }
+        }
+
+        // Update photo counter display
+        function updatePhotoCounter() {
+            const counter = document.getElementById('photoCounter');
+            if (counter && existingGamePhotos.length > 0) {
+                counter.textContent = `${currentPhotoIndex + 1} / ${existingGamePhotos.length}`;
+            }
+        }
+
+        // Photo gallery functions
+        async function openPhotoGallery(gameId) {
+            try {
+                // Load photos for the game
+                const response = await fetch(`/api/game/${gameId}/photos`);
+                const data = await response.json();
+                
+                if (!response.ok || !data.photos || data.photos.length === 0) {
+                    alert('No photos available for this game.');
+                    return;
+                }
+                
+                // Set up gallery state
+                existingGamePhotos = data.photos;
+                currentPhotoIndex = 0;
+                
+                // Open the first photo in the viewer
+                const firstPhoto = existingGamePhotos[0];
+                openPhotoViewer(firstPhoto.id, `/api/photos/${firstPhoto.id}/view`, firstPhoto.original_filename);
+                
+            } catch (error) {
+                console.error('Error loading photo gallery:', error);
+                alert('Error loading photos. Please try again.');
+            }
         }
 
     </script>
