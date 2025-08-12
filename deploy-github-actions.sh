@@ -108,6 +108,7 @@ User=$APP_USER
 Group=$APP_USER
 RuntimeDirectory=$APP_NAME
 WorkingDirectory=$APP_DIR
+EnvironmentFile=$APP_DIR/.env
 ExecStart=$APP_DIR/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 3 --timeout 120 wsgi:app
 ExecReload=/bin/kill -s HUP \$MAINPID
 KillMode=mixed
