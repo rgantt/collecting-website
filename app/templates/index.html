@@ -1195,7 +1195,8 @@
                 <div class="modal-body">
                     <div id="photoUploadGameInfo" class="mb-3 p-3 border rounded bg-light">
                         <h6 id="photoUploadGameName" class="mb-1"></h6>
-                        <small id="photoUploadGameConsole" class="text-muted"></small>
+                        <small id="photoUploadGameConsole" class="text-muted d-block"></small>
+                        <small id="photoUploadPhotoCount" class="text-muted"></small>
                     </div>
                     
                     <!-- Photo Upload Section -->
@@ -4083,6 +4084,9 @@
             // Load existing photos
             await loadExistingPhotos(gameId);
             
+            // Update photo count display
+            updatePhotoCountDisplay();
+            
             // Show modal
             const modal = new bootstrap.Modal(document.getElementById('photoUploadModal'));
             modal.show();
@@ -4216,10 +4220,37 @@
                 return;
             }
 
-            selectedPhotoFiles = validFiles;
-            displayPhotoPreview();
+            // Filter out duplicate files based on name and size
+            const newFiles = validFiles.filter(newFile => {
+                return !selectedPhotoFiles.some(existingFile => 
+                    existingFile.name === newFile.name && existingFile.size === newFile.size
+                );
+            });
             
-            document.getElementById('uploadPhotosBtn').disabled = validFiles.length === 0;
+            // Check photo limit (20 photos per game including existing photos)
+            const maxPhotos = 20;
+            const currentPhotoCount = existingGamePhotos.length;
+            const maxNewPhotos = maxPhotos - currentPhotoCount - selectedPhotoFiles.length;
+            
+            let finalFiles = newFiles;
+            if (newFiles.length > maxNewPhotos) {
+                finalFiles = newFiles.slice(0, maxNewPhotos);
+                const errorAlert = document.getElementById('photoUploadError');
+                errorAlert.textContent = `Photo limit: Only ${maxNewPhotos} more photos can be added (${currentPhotoCount} existing, ${selectedPhotoFiles.length} selected, ${maxPhotos} max).`;
+                errorAlert.classList.remove('d-none');
+            } else if (newFiles.length < validFiles.length) {
+                const duplicateCount = validFiles.length - newFiles.length;
+                const errorAlert = document.getElementById('photoUploadError');
+                errorAlert.textContent = `Note: ${duplicateCount} duplicate file(s) were skipped.`;
+                errorAlert.classList.remove('d-none');
+            }
+            
+            // Add new files to existing selection instead of replacing
+            selectedPhotoFiles = selectedPhotoFiles.concat(finalFiles);
+            displayPhotoPreview();
+            updatePhotoCountDisplay();
+            
+            document.getElementById('uploadPhotosBtn').disabled = selectedPhotoFiles.length === 0;
         }
 
         function displayPhotoPreview() {
@@ -4264,7 +4295,18 @@
         function removeSelectedFile(index) {
             selectedPhotoFiles.splice(index, 1);
             displayPhotoPreview();
+            updatePhotoCountDisplay();
             document.getElementById('uploadPhotosBtn').disabled = selectedPhotoFiles.length === 0;
+        }
+        
+        function updatePhotoCountDisplay() {
+            const maxPhotos = 20;
+            const currentCount = existingGamePhotos.length;
+            const selectedCount = selectedPhotoFiles.length;
+            const remainingSlots = maxPhotos - currentCount - selectedCount;
+            
+            const photoCountElement = document.getElementById('photoUploadPhotoCount');
+            photoCountElement.textContent = `Photos: ${currentCount} existing, ${selectedCount} selected, ${remainingSlots} more can be added (${maxPhotos} max)`;
         }
 
         // Upload photos
