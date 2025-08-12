@@ -1671,3 +1671,111 @@ def view_photo(photo_id):
     except Exception as e:
         current_app.logger.error(f"Error serving photo {photo_id}: {e}")
         return jsonify({"error": "Failed to serve photo"}), 500
+
+
+@main.route('/api/barcode/search', methods=['POST'])
+def search_by_barcode():
+    """Search for games using a UPC/EAN barcode by scraping PriceCharting."""
+    try:
+        data = request.get_json()
+        barcode = data.get('barcode', '').strip()
+        
+        if not barcode:
+            return jsonify({"error": "Barcode is required"}), 400
+            
+        # Validate barcode format
+        cleaned_barcode = ''.join(filter(str.isdigit, barcode))
+        valid_lengths = [8, 12, 13]  # UPC-E, UPC-A, EAN-13
+        
+        if len(cleaned_barcode) not in valid_lengths:
+            return jsonify({"error": "Invalid barcode format. Must be 8, 12, or 13 digits."}), 400
+        
+        current_app.logger.info(f"Searching for barcode: {barcode}")
+        
+        # Search PriceCharting using their JSON API endpoint
+        import requests
+        import time
+        
+        search_url = "https://www.pricecharting.com/search-products"
+        search_params = {
+            'q': cleaned_barcode,
+            'type': 'prices'
+        }
+        
+        # Add realistic headers to avoid getting blocked
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': 'https://www.pricecharting.com/',
+            'Connection': 'keep-alive',
+        }
+        
+        try:
+            response = requests.get(search_url, params=search_params, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            # Parse JSON response
+            data = response.json()
+            games = []
+            
+            # Extract products from the JSON response
+            products = data.get('products', [])
+            
+            seen_games = set()
+            for product in products:
+                if product.get('category') != 'video-games':
+                    continue
+                    
+                product_name = product.get('productName', '').strip()
+                console_name = product.get('consoleName', '').strip()
+                product_id = product.get('id', '')
+                
+                if not product_name or not console_name or not product_id:
+                    continue
+                
+                # Create a unique key to avoid duplicates
+                game_key = f"{product_name}|{console_name}"
+                if game_key in seen_games:
+                    continue
+                seen_games.add(game_key)
+                
+                # Construct PriceCharting URL from the product data
+                # Format: https://www.pricecharting.com/game/console/game-name
+                from app.pricecharting_service import PricechartingService
+                clean_console = PricechartingService.clean_system_name(console_name)
+                clean_name = PricechartingService.clean_game_name(product_name)
+                
+                game_url = f"https://www.pricecharting.com/game/{clean_console}/{clean_name}"
+                
+                games.append({
+                    'name': product_name,
+                    'console': console_name,
+                    'url': game_url,
+                    'price': product.get('price1', 0)
+                })
+                
+                # Limit results to prevent overwhelming the UI
+                if len(games) >= 10:
+                    break
+            
+            current_app.logger.info(f"Found {len(games)} games for barcode {barcode}")
+            
+            return jsonify({
+                "success": True,
+                "barcode": barcode,
+                "games": games,
+                "total": len(games)
+            })
+            
+        except requests.exceptions.Timeout:
+            current_app.logger.error(f"Timeout searching PriceCharting for barcode: {barcode}")
+            return jsonify({"error": "Search timeout. Please try again."}), 504
+            
+        except requests.exceptions.RequestException as e:
+            current_app.logger.error(f"Error searching PriceCharting for barcode {barcode}: {e}")
+            return jsonify({"error": "Search service unavailable. Please try again later."}), 503
+            
+    except Exception as e:
+        current_app.logger.error(f"Error in barcode search: {e}")
+        return jsonify({"error": "An error occurred while searching"}), 500
