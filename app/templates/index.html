@@ -1184,7 +1184,7 @@
 
     <!-- Photo Upload Modal -->
     <div class="modal fade" id="photoUploadModal" tabindex="-1" aria-labelledby="photoUploadModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="photoUploadModalLabel">
@@ -4138,7 +4138,7 @@
             countBadge.textContent = `${existingGamePhotos.length} photo${existingGamePhotos.length === 1 ? '' : 's'}`;
             
             photosList.innerHTML = existingGamePhotos.map(photo => `
-                <div class="col-md-3 col-sm-4 col-6">
+                <div class="col-lg-3 col-md-4 col-sm-6 col-6">
                     <div class="card">
                         <div class="position-relative">
                             <img src="/api/photos/${photo.id}/view" class="card-img-top" style="height: 120px; object-fit: cover; cursor: pointer;" 
@@ -4262,33 +4262,39 @@
             }
 
             previewArea.style.display = 'block';
+            
+            // Use flexbox layout for reliable horizontal arrangement
             previewArea.innerHTML = `
-                <div class="col-12">
+                <div class="col-12 mb-3">
                     <h6 class="text-muted">Selected Photos (${selectedPhotoFiles.length}):</h6>
                 </div>
-                ${selectedPhotoFiles.map((file, index) => `
-                    <div class="col-md-3 col-sm-4 col-6">
-                        <div class="card">
-                            <div class="position-relative">
-                                <img src="${URL.createObjectURL(file)}" class="card-img-top" 
-                                     style="height: 120px; object-fit: cover;" alt="${file.name}">
-                                <div class="position-absolute top-0 end-0 p-1">
-                                    <button class="btn btn-sm btn-outline-danger" 
-                                            onclick="removeSelectedFile(${index})"
-                                            title="Remove">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                <div class="col-12">
+                    <div class="d-flex flex-wrap gap-3">
+                        ${selectedPhotoFiles.map((file, index) => `
+                            <div style="flex: 0 0 auto; width: 200px;">
+                                <div class="card">
+                                    <div class="position-relative">
+                                        <img src="${URL.createObjectURL(file)}" class="card-img-top" 
+                                             style="height: 120px; object-fit: cover;" alt="${file.name}">
+                                        <div class="position-absolute top-0 end-0 p-1">
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    onclick="removeSelectedFile(${index})"
+                                                    title="Remove">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        <small class="text-muted d-block text-truncate" title="${file.name}">
+                                            ${file.name}
+                                        </small>
+                                        <small class="text-muted">${formatFileSize(file.size)}</small>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="card-body p-2">
-                                <small class="text-muted d-block text-truncate" title="${file.name}">
-                                    ${file.name}
-                                </small>
-                                <small class="text-muted">${formatFileSize(file.size)}</small>
-                            </div>
-                        </div>
+                        `).join('')}
                     </div>
-                `).join('')}
+                </div>
             `;
         }
 
@@ -4320,6 +4326,16 @@
                 const errorAlert = document.getElementById('photoUploadError');
                 errorAlert.textContent = 'Upload failed: ' + error.message;
                 errorAlert.classList.remove('d-none');
+                
+                // Re-enable upload button and hide progress on error
+                document.getElementById('uploadPhotosBtn').disabled = selectedPhotoFiles.length === 0;
+                document.getElementById('uploadProgressArea').style.display = 'none';
+                
+                // Show retry hint
+                if (selectedPhotoFiles.length > 0) {
+                    const errorAlert = document.getElementById('photoUploadError');
+                    errorAlert.textContent += ' You can try uploading again.';
+                }
             }
         });
 
