@@ -1340,6 +1340,13 @@
                             <input type="text" id="manualBarcodeInput" class="form-control" placeholder="Enter UPC/EAN barcode">
                             <button class="btn btn-primary" id="manualBarcodeSubmit">Search</button>
                         </div>
+                        
+                        <!-- iOS PWA Alternative: Take Photo -->
+                        <div class="mt-3">
+                            <p class="text-muted">Or take a photo of the barcode:</p>
+                            <input type="file" id="barcodePhotoInput" accept="image/*" capture="environment" class="form-control">
+                            <small class="text-muted">Take or select a photo of the barcode</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -4579,27 +4586,77 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Close viewer if it's open
-                    const viewerModal = bootstrap.Modal.getInstance(document.getElementById('photoViewerModal'));
-                    if (viewerModal) viewerModal.hide();
+                    // Find the index of the deleted photo
+                    const deletedIndex = existingGamePhotos.findIndex(photo => photo.id === photoId);
                     
-                    // Reload photos
-                    await loadExistingPhotos(currentGameIdForPhotos);
+                    // Remove the photo from the array
+                    existingGamePhotos.splice(deletedIndex, 1);
                     
                     // Update photo count in expanded card if visible
                     await loadPhotoCount(currentGameIdForPhotos);
                     
-                    const successAlert = document.getElementById('photoUploadSuccess');
-                    successAlert.textContent = `"${filename}" has been deleted.`;
-                    successAlert.classList.remove('d-none');
+                    // Check if there are remaining photos
+                    if (existingGamePhotos.length === 0) {
+                        // No photos left, close the viewer
+                        const viewerModal = bootstrap.Modal.getInstance(document.getElementById('photoViewerModal'));
+                        if (viewerModal) viewerModal.hide();
+                        
+                        // Show success message if in upload modal
+                        const successAlert = document.getElementById('photoUploadSuccess');
+                        if (successAlert) {
+                            successAlert.textContent = `"${filename}" has been deleted. No more photos remaining.`;
+                            successAlert.classList.remove('d-none');
+                        }
+                    } else {
+                        // Photos remain, navigate to next photo
+                        // Adjust current index if needed
+                        if (currentPhotoIndex >= existingGamePhotos.length) {
+                            currentPhotoIndex = existingGamePhotos.length - 1;
+                        } else if (deletedIndex < currentPhotoIndex) {
+                            // If we deleted a photo before current, adjust index
+                            currentPhotoIndex--;
+                        }
+                        // If we deleted the current photo, index stays the same (shows next photo)
+                        
+                        // Display the photo at the adjusted index
+                        const nextPhoto = existingGamePhotos[currentPhotoIndex];
+                        document.getElementById('photoViewerImage').src = `/api/photos/${nextPhoto.id}/view`;
+                        document.getElementById('photoViewerInfo').textContent = nextPhoto.original_filename;
+                        document.getElementById('deletePhotoBtn').onclick = () => deletePhoto(nextPhoto.id, nextPhoto.original_filename);
+                        
+                        // Update navigation buttons
+                        document.getElementById('prevPhotoBtn').style.display = existingGamePhotos.length > 1 ? 'inline-block' : 'none';
+                        document.getElementById('nextPhotoBtn').style.display = existingGamePhotos.length > 1 ? 'inline-block' : 'none';
+                        
+                        // Update counter to reflect new count and position
+                        updatePhotoCounter();
+                        
+                        // Brief success feedback without closing modal
+                        const viewerInfo = document.getElementById('photoViewerInfo');
+                        const originalText = viewerInfo.textContent;
+                        viewerInfo.innerHTML = `<span class="text-success">✓ Deleted</span> - ${originalText}`;
+                        setTimeout(() => {
+                            viewerInfo.textContent = existingGamePhotos[currentPhotoIndex].original_filename;
+                        }, 2000);
+                    }
+                    
+                    // Reload photos in the upload modal if it's open
+                    const uploadModal = document.getElementById('photoUploadModal');
+                    if (uploadModal && uploadModal.classList.contains('show')) {
+                        await loadExistingPhotos(currentGameIdForPhotos);
+                    }
+                    
                 } else {
                     throw new Error(data.message || 'Failed to delete photo');
                 }
             } catch (error) {
                 console.error('Error deleting photo:', error);
-                const errorAlert = document.getElementById('photoUploadError');
-                errorAlert.textContent = 'Failed to delete photo: ' + error.message;
-                errorAlert.classList.remove('d-none');
+                // Show error in viewer info area
+                const viewerInfo = document.getElementById('photoViewerInfo');
+                viewerInfo.innerHTML = `<span class="text-danger">Error: ${error.message}</span>`;
+                setTimeout(() => {
+                    viewerInfo.textContent = filename;
+                }, 3000);
             }
         }
 
@@ -4742,6 +4799,19 @@
         // Barcode Scanner functionality
         let barcodeScanner = null;
         let videoStream = null;
+        
+        // Auto-open scanner if coming from PWA redirect
+        if (window.location.search.includes('scan=true')) {
+            // Remove the query parameter to clean up URL
+            const url = new URL(window.location);
+            url.searchParams.delete('scan');
+            window.history.replaceState({}, document.title, url.pathname + url.search);
+            
+            // Auto-open scanner after page loads
+            setTimeout(() => {
+                document.getElementById('barcodeScannerBtn').click();
+            }, 500);
+        }
 
         // Open barcode scanner modal
         document.getElementById('barcodeScannerBtn').addEventListener('click', function() {
@@ -4775,6 +4845,59 @@
                 document.getElementById('manualBarcodeSubmit').click();
             }
         });
+        
+        // Handle photo upload for barcode scanning (iOS PWA fallback)
+        document.getElementById('barcodePhotoInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Show loading state
+            document.getElementById('scannerLoading').style.display = 'block';
+            document.getElementById('scannerLoading').textContent = 'Processing photo...';
+            
+            try {
+                // Create image element to load the photo
+                const img = new Image();
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                img.onload = function() {
+                    // Set canvas size to image size
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Use Quagga to decode from the canvas
+                    Quagga.decodeSingle({
+                        decoder: {
+                            readers: ["ean_reader", "ean_8_reader", "code_128_reader", "upc_reader", "upc_e_reader"]
+                        },
+                        locate: true,
+                        src: canvas.toDataURL('image/png')
+                    }, function(result) {
+                        document.getElementById('scannerLoading').style.display = 'none';
+                        
+                        if (result && result.codeResult) {
+                            console.log('Barcode found in photo:', result.codeResult.code);
+                            handleBarcodeDetected(result.codeResult.code);
+                        } else {
+                            showScannerError('No barcode found in photo. Please try again or enter manually.');
+                        }
+                    });
+                };
+                
+                // Load the image from file
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                
+            } catch (error) {
+                console.error('Error processing barcode photo:', error);
+                showScannerError('Failed to process photo. Please try manual entry.');
+            }
+        });
 
         async function startBarcodeScanner() {
             const video = document.getElementById('barcodeVideo');
@@ -4782,6 +4905,36 @@
             const readyMsg = document.getElementById('scannerReady');
             const errorMsg = document.getElementById('scannerError');
             const overlay = document.getElementById('scanningOverlay');
+            
+            // Check if we're in a PWA on iOS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+            
+            if (isIOS && isStandalone) {
+                // iOS PWA - show alternative options
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-info';
+                alertDiv.innerHTML = `
+                    <h6>📱 iOS App Mode Detected</h6>
+                    <p class="mb-2">Camera scanning requires Safari. Choose an option:</p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary btn-sm" onclick="window.open('${window.location.href}?scan=true', '_blank')">
+                            🌐 Open Scanner in Safari
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('barcodePhotoInput').click()">
+                            📷 Take Photo of Barcode
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('manualBarcodeInput').focus()">
+                            ⌨️ Enter Barcode Manually
+                        </button>
+                    </div>
+                `;
+                document.querySelector('#barcodeScannerModal .modal-body').prepend(alertDiv);
+                document.getElementById('manualEntryOption').style.display = 'block';
+                document.getElementById('manualEntryBtn').style.display = 'none';
+                document.getElementById('cameraContainer').style.display = 'none';
+                return;
+            }
             
             try {
                 // Request camera access
@@ -4815,7 +4968,9 @@
                     decoder: {
                         readers: [
                             "ean_reader",
-                            "ean_8_reader", 
+                            "ean_8_reader",
+                            "upc_reader",
+                            "upc_e_reader",
                             "code_128_reader",
                             "code_39_reader",
                             "code_93_reader",
