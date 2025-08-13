@@ -4222,7 +4222,7 @@
                     <div class="card">
                         <div class="position-relative">
                             <img src="/api/photos/${photo.id}/view" class="card-img-top" style="height: 120px; object-fit: cover; cursor: pointer;" 
-                                 onclick="openPhotoViewer(${photo.id}, '/api/photos/${photo.id}/view', '${photo.original_filename}')"
+                                 onclick="openPhotoViewer(${photo.id}, '/api/photos/${photo.id}/view', '${photo.original_filename}', ${currentGameIdForPhotos})"
                                  alt="${photo.original_filename}">
                             <div class="position-absolute top-0 end-0 p-1">
                                 <button class="btn btn-sm btn-outline-danger" 
@@ -4519,7 +4519,12 @@
         // Photo viewer functions
         let currentPhotoIndex = 0;
         
-        function openPhotoViewer(photoId, photoUrl, filename) {
+        function openPhotoViewer(photoId, photoUrl, filename, gameId = null) {
+            // Set the game ID if provided (when opening from gallery or elsewhere)
+            if (gameId) {
+                currentGameIdForPhotos = gameId;
+            }
+            
             currentPhotoIndex = existingGamePhotos.findIndex(photo => photo.id === photoId);
             
             document.getElementById('photoViewerImage').src = photoUrl;
@@ -4726,7 +4731,7 @@
                 
                 // Open the first photo in the viewer
                 const firstPhoto = existingGamePhotos[0];
-                openPhotoViewer(firstPhoto.id, `/api/photos/${firstPhoto.id}/view`, firstPhoto.original_filename);
+                openPhotoViewer(firstPhoto.id, `/api/photos/${firstPhoto.id}/view`, firstPhoto.original_filename, gameId);
                 
             } catch (error) {
                 console.error('Error loading photo gallery:', error);
