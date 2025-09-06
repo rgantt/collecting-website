@@ -2,10 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: August 2025  
+**Last Updated**: September 2025  
 **Current Version**: Complete Photo Upload System + API-First System with Enhanced Mobile UI - Production Ready ✅  
 **Default Dev Port**: 8082
 **Recent Updates**: Photo upload/viewing feature, S3 integration, complementary details expansion, enhanced mobile support
+
+## Quick Start
+
+```bash
+# 1. Setup environment
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Run development server
+python3 wsgi.py
+
+# 3. Run tests
+python run_tests.py
+
+# 4. Access application
+open http://localhost:8082
+```
 
 ## Common Development Commands
 
@@ -33,17 +50,20 @@ pip install -r requirements.txt
 
 ### Testing Commands
 ```bash
-# Run all backend tests with coverage
+# Run all backend tests with coverage (recommended)
 python run_tests.py
 
 # Run specific test file
 python3 -m pytest tests/test_optimistic_ui.py -v
 
-# Run single test
-python3 -m pytest tests/test_optimistic_ui.py::TestAddGameOptimistic::test_add_to_wishlist_success -v
+# Run single test method
+python3 -m pytest tests/test_optimistic_ui.py::TestLentStatusOperations::test_mark_game_as_lent_success -v
 
-# Generate coverage report
+# Generate coverage report only
 python3 -m pytest tests/ --cov=app --cov-report=html
+
+# Basic syntax check
+python3 -m py_compile wsgi.py
 ```
 
 ### Database Operations
@@ -354,3 +374,18 @@ closeModal();  // Prevents hanging modals
 2. Run tests: `python run_tests.py`
 3. Start development server: `python3 wsgi.py` (port 8082)
 4. Access application: http://localhost:8082
+
+## Key Dependencies and Tools
+
+**Core Stack**:
+- Python 3.8+ (Flask 3.0.0, Gunicorn 21.0+)
+- SQLite database (no ORM, direct queries)
+- Vanilla JavaScript (no framework, progressive enhancement)
+- Bootstrap 5.x for UI components
+- AWS S3 for photo storage and database backups
+
+**Development Tools**:
+- pytest for backend testing with coverage reports
+- Browser-based testing for frontend (HTML test files)
+- py_compile for syntax validation
+- Deployment scripts for Ubuntu/systemd setup

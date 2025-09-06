@@ -22,7 +22,11 @@
       "Bash(find:*)",
       "Bash(node:*)",
       "Bash(echo:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "WebFetch(domain:www.pricecharting.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }

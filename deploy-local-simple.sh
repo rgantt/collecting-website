@@ -172,6 +172,35 @@ else
     warn "⚠️  setup-backup-cron.sh not found, skipping backup setup"
 fi
 
+# Apply database migrations for price update system
+log "Applying database migrations..."
+if [[ -f "$APP_DIR/add_price_update_view.sql" ]]; then
+    if sudo -u "$APP_USER" sqlite3 "$APP_DIR/games.db" < "$APP_DIR/add_price_update_view.sql" 2>/dev/null; then
+        log "✅ Database migrations applied successfully"
+    else
+        warn "⚠️  Database migration may have already been applied or failed"
+    fi
+else
+    warn "⚠️  add_price_update_view.sql not found, skipping migration"
+fi
+
+# Set up daily price update system
+log "Setting up daily price update system..."
+if [[ -f "$APP_DIR/setup-price-cron.sh" && -f "$APP_DIR/daily_price_update.py" ]]; then
+    chmod +x "$APP_DIR/setup-price-cron.sh"
+    chmod +x "$APP_DIR/daily_price_update.py"
+    
+    # Run setup script
+    if bash -c "cd $APP_DIR && ./setup-price-cron.sh" 2>/dev/null; then
+        log "✅ Daily price update system configured successfully"
+    else
+        warn "⚠️  Price update setup failed - you may need to run manually"
+        warn "    Run: cd $APP_DIR && sudo ./setup-price-cron.sh"
+    fi
+else
+    warn "⚠️  Price update scripts not found, skipping price update setup"
+fi
+
 # Start service
 log "Starting ${APP_NAME} service..."
 systemctl start "$SERVICE_NAME"
