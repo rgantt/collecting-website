@@ -100,7 +100,7 @@ def insert_price_records(price_data: dict, connection):
         return False
 
 # Configuration
-DEFAULT_BATCH_SIZE = 50
+DEFAULT_BATCH_SIZE = 200
 DEFAULT_DB_PATH = Path(__file__).parent / "games.db"
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 

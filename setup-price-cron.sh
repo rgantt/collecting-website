@@ -10,7 +10,7 @@ VENV_PATH="$APP_DIR/venv"
 UPDATE_SCRIPT="$APP_DIR/daily_price_update.py"
 LOG_FILE="/var/log/collecting-website-prices.log"
 CRON_SCHEDULE="0 2 * * *"  # Daily at 2 AM
-BATCH_SIZE="${PRICE_BATCH_SIZE:-50}"  # Default 50 games per day
+BATCH_SIZE="${PRICE_BATCH_SIZE:-200}"  # Default 200 games per day
 
 # Colors for output
 RED='\033[0;31m'
